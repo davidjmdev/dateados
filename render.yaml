@@ -1,13 +1,10 @@
-services:
-  # Servicio PostgreSQL
-  - type: pspg
-    name: dateados_db
-    plan: free
+databases:
+  - name: dateados_db
     databaseName: nba_stats
     user: nba
-    # Render genera automáticamente la contraseña y la expone en DATABASE_URL
+    plan: free
 
-  # Servicio Web (FastAPI)
+services:
   - type: web
     name: dateados_web
     env: python
@@ -20,5 +17,4 @@ services:
           name: dateados_db
           property: connectionString
       - key: PYTHON_VERSION
-        value: 3.10.0
-    # El puerto se asigna automáticamente por Render via $PORT
+        value: 3.10.12
