@@ -6,14 +6,22 @@ from pathlib import Path
 import logging
 import sys
 from ingestion.config import LOG_FORMAT, LOG_DATE_FORMAT
+from db.utils.logging_handler import SQLAlchemyHandler
+from db.connection import init_db
 
-# Configurar logging global (tanto consola como archivo)
+# Asegurar que las tablas existen antes de configurar logging
+try:
+    init_db()
+except Exception as e:
+    print(f"Error inicializando DB: {e}", file=sys.stderr)
+
+# Configurar logging global (tanto consola como archivo de DB)
 logging.basicConfig(
     level=logging.INFO,
     format=LOG_FORMAT,
     datefmt=LOG_DATE_FORMAT,
     handlers=[
-        logging.FileHandler('logs/ingestion.log'),
+        SQLAlchemyHandler(),
         logging.StreamHandler(sys.stdout)
     ]
 )

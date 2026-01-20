@@ -26,6 +26,15 @@ from ingestion.core import FullIngestion, IncrementalIngestion
 from ingestion.restart import restart_process
 from ingestion.utils import FatalIngestionError, normalize_season
 from ingestion.config import LOG_FORMAT, LOG_DATE_FORMAT
+from db.utils.logging_handler import SQLAlchemyHandler
+from db.models import LogEntry
+from sqlalchemy import delete
+
+# Asegurar que la tabla de logs (y el resto) existe antes de configurar logging
+try:
+    init_db()
+except Exception:
+    pass
 
 # Configurar logging
 logging.basicConfig(
@@ -33,7 +42,7 @@ logging.basicConfig(
     format=LOG_FORMAT,
     datefmt=LOG_DATE_FORMAT,
     handlers=[
-        logging.FileHandler('logs/ingestion.log'),
+        SQLAlchemyHandler(),
         logging.StreamHandler(sys.stdout)
     ]
 )
@@ -41,8 +50,27 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def clear_logs():
+    """Borra todos los logs de la base de datos para iniciar una nueva ejecución limpia."""
+    from db.connection import get_session
+    session = get_session()
+    try:
+        session.execute(delete(LogEntry))
+        session.commit()
+        logger.info("🧹 Logs de base de datos limpiados para nueva ejecución.")
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Error al limpiar logs: {e}")
+    finally:
+        session.close()
+
+
 def run_full_ingestion(start_season: str, end_season: str, resume: bool):
     """Ejecuta ingesta histórica completa paralela."""
+    # Limpiar logs si no es una reanudación (opcional, pero según user: "cuando se lance un proceso nuevo")
+    if not resume:
+        clear_logs()
+        
     logger.info("=" * 80)
     logger.info("INICIANDO INGESTA COMPLETA HISTÓRICA (PARALELA)")
     logger.info("=" * 80)
@@ -78,6 +106,7 @@ def run_full_ingestion(start_season: str, end_season: str, resume: bool):
 
 def run_incremental_ingestion(limit_seasons: int):
     """Ejecuta ingesta incremental paralela."""
+    clear_logs()
     logger.info("=" * 80)
     logger.info("INICIANDO INGESTA INCREMENTAL (PARALELA)")
     logger.info("=" * 80)

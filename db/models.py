@@ -645,3 +645,18 @@ class SystemStatus(Base):
     
     def __repr__(self):
         return f"<SystemStatus(task='{self.task_name}', status='{self.status}', progress={self.progress}%)>"
+
+
+class LogEntry(Base):
+    """Modelo para persistir logs del sistema en la base de datos."""
+    __tablename__ = 'log_entries'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    timestamp = Column(DateTime, default=utc_now, nullable=False, index=True)
+    level = Column(String(20), nullable=False, index=True)
+    module = Column(String(100), nullable=False)
+    message = Column(String, nullable=False)
+    traceback = Column(String, nullable=True)
+    
+    def __repr__(self):
+        return f"<LogEntry(id={self.id}, level='{self.level}', module='{self.module}')>"

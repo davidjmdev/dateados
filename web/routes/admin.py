@@ -23,17 +23,10 @@ def get_db():
     finally:
         db.close()
 
-# Asegurar que la tabla system_status existe (Migración segura)
-def ensure_status_table():
-    engine = get_engine()
-    from sqlalchemy import inspect
-    inspector = inspect(engine)
-    if not inspector.has_table("system_status"):
-        SystemStatus.__table__.create(bind=engine)
+# Asegurar que la tabla system_status existe (Migración segura) - YA SE HACE EN APP.PY VIA INIT_DB
 
 @router.get("/ingest")
 async def ingest_page(request: Request, db: Session = Depends(get_db)):
-    ensure_status_table()
     status = db.query(SystemStatus).filter_by(task_name="incremental_ingestion").first()
 
     return templates.TemplateResponse("admin/ingest.html", {
@@ -78,7 +71,6 @@ async def start_ingestion(background_tasks: BackgroundTasks, db: Session = Depen
 
 @router.get("/ingest/status")
 async def get_ingestion_status(db: Session = Depends(get_db)):
-    ensure_status_table()
     status = db.query(SystemStatus).filter_by(task_name="incremental_ingestion").first()
     if not status:
         return {"status": "idle", "progress": 0, "message": "No hay tareas registradas."}
@@ -89,9 +81,3 @@ async def get_ingestion_status(db: Session = Depends(get_db)):
         "message": status.message,
         "updated_at": status.updated_at.isoformat() if status.updated_at else None
     }
-
-# Ejecutar al importar para asegurar que la tabla existe al iniciar la app
-try:
-    ensure_status_table()
-except:
-    pass

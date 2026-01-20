@@ -11,16 +11,12 @@ from ingestion.config import (
     WORKER_STAGGER_MIN, WORKER_STAGGER_MAX
 )
 from ingestion.utils import FatalIngestionError
+from db.utils.logging_handler import SQLAlchemyHandler
 
 logger = logging.getLogger(__name__)
 
 def setup_worker_logging(worker_name: str):
-    """Configura el logging para un worker en un archivo separado."""
-    log_dir = os.path.join('logs', 'workers')
-    os.makedirs(log_dir, exist_ok=True)
-    
-    log_file = os.path.join(log_dir, f"{worker_name}.log")
-    
+    """Configura el logging para un worker en la base de datos."""
     # Limpiar handlers existentes
     root = logging.getLogger()
     for handler in root.handlers[:]:
@@ -31,7 +27,8 @@ def setup_worker_logging(worker_name: str):
         format=LOG_FORMAT,
         datefmt=LOG_DATE_FORMAT,
         handlers=[
-            logging.FileHandler(log_file),
+            SQLAlchemyHandler(),
+            # No usamos StreamHandler en workers para no saturar la consola principal si hay muchos
         ]
     )
     
