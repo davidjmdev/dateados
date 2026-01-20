@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% from "components/nba_components.html" import card_container, badge %}
+
+{% block title %}Administración de Ingesta - Dateados{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-black text-gray-900 dark:text-gray-100 tracking-tight">Panel de Control de Datos</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Sincroniza la base de datos con los últimos resultados oficiales.</p>
+        </div>
+        <div id="status-badge">
+            {% if status and status.status == 'running' %}
+                {{ badge('EJECUTANDO', 'info', class='animate-pulse') }}
+            {% elif status and status.status == 'completed' %}
+                {{ badge('COMPLETADO', 'success') }}
+            {% elif status and status.status == 'failed' %}
+                {{ badge('FALLIDO', 'error') }}
+            {% else %}
+                {{ badge('INACTIVO', 'default') }}
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Main Control Card -->
+    {% call card_container(title="Ingesta Incremental") %}
+        <div class="p-8 space-y-6">
+            <div class="flex flex-col items-center text-center space-y-4">
+                <div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-full">
+                    <svg class="w-12 h-12 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">Actualizar Estadísticas</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 max-w-sm">
+                        Busca y descarga los partidos jugados recientemente que aún no están en Dateados. Este proceso es seguro y consume pocos recursos.
+                    </p>
+                </div>
+                
+                <button id="start-ingest-btn" 
+                        onclick="startIngestion()"
+                        {% if status and status.status == 'running' %}disabled{% endif %}
+                        class="px-8 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-blue-500/20 active:scale-95">
+                    Iniciar Sincronización
+                </button>
+            </div>
+
+            <!-- Progress Section (Hidden by default unless running) -->
+            <div id="progress-section" class="{% if not status or status.status != 'running' %}hidden{% endif %} space-y-4 border-t border-gray-100 dark:border-gray-700 pt-8">
+                <div class="flex justify-between items-end">
+                    <div class="space-y-1">
+                        <span class="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">Progreso actual</span>
+                        <p id="progress-message" class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            {{ status.message if status else 'Preparando...' }}
+                        </p>
+                    </div>
+                    <span id="progress-percent" class="text-2xl font-black text-gray-900 dark:text-gray-100">
+                        {{ status.progress if status else '0' }}%
+                    </span>
+                </div>
+                
+                <div class="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-3 overflow-hidden shadow-inner">
+                    <div id="progress-bar" 
+                         class="bg-blue-600 h-full transition-all duration-500 rounded-full shadow-lg shadow-blue-500/50" 
+                         style="width: {{ status.progress if status else '0' }}%">
+                    </div>
+                </div>
+
+                <div class="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-100 dark:border-gray-700">
+                    <p class="text-[10px] font-bold text-gray-400 uppercase mb-2">Última actividad</p>
+                    <div id="log-console" class="text-xs font-mono text-gray-600 dark:text-gray-400 h-24 overflow-y-auto custom-scrollbar">
+                        <p>[{{ status.updated_at if status else '' }}] Esperando actualización...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endcall %}
+
+    <!-- Info Section -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/40 rounded-xl">
+            <div class="flex space-x-3">
+                <svg class="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                    <h4 class="text-sm font-bold text-amber-900 dark:text-amber-200">Notas de Producción</h4>
+                    <p class="text-xs text-amber-800/80 dark:text-amber-400/80 mt-1">
+                        En Render.com, la ingesta se ejecuta de forma secuencial para proteger los 512MB de RAM. No cierres esta pestaña mientras el proceso esté activo para recibir el feedback en vivo.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="p-4 bg-slate-50 dark:bg-slate-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+            <div class="flex space-x-3">
+                <svg class="h-5 w-5 text-slate-600 dark:text-slate-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                    <h4 class="text-sm font-bold text-slate-900 dark:text-slate-100">Programación Automática</h4>
+                    <p class="text-xs text-slate-500 dark:text-gray-400 mt-1">
+                        Recuerda que este panel permite lanzamientos manuales, pero el sistema también está preparado para tareas programadas (Cron).
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let pollInterval;
+
+    function startIngestion() {
+        const btn = document.getElementById('start-ingest-btn');
+        btn.disabled = true;
+        btn.innerText = 'Iniciando...';
+        
+        fetch('/admin/ingest/run', { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    document.getElementById('progress-section').classList.remove('hidden');
+                    updateBadge('running');
+                    startPolling();
+                } else {
+                    alert(data.message);
+                    btn.disabled = false;
+                    btn.innerText = 'Iniciar Sincronización';
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                btn.disabled = false;
+                btn.innerText = 'Iniciar Sincronización';
+            });
+    }
+
+    function startPolling() {
+        if (pollInterval) clearInterval(pollInterval);
+        pollInterval = setInterval(updateStatus, 3000);
+    }
+
+    function updateStatus() {
+        fetch('/admin/ingest/status')
+            .then(res => res.json())
+            .then(data => {
+                const bar = document.getElementById('progress-bar');
+                const percent = document.getElementById('progress-percent');
+                const message = document.getElementById('progress-message');
+                const console = document.getElementById('log-console');
+                const btn = document.getElementById('start-ingest-btn');
+
+                bar.style.width = data.progress + '%';
+                percent.innerText = data.progress + '%';
+                message.innerText = data.message;
+
+                // Simple log update
+                if (data.message !== message.dataset.lastMsg) {
+                    const p = document.createElement('p');
+                    p.innerText = `[${new Date().toLocaleTimeString()}] ${data.message}`;
+                    console.prepend(p);
+                    message.dataset.lastMsg = data.message;
+                }
+
+                if (data.status !== 'running') {
+                    clearInterval(pollInterval);
+                    btn.disabled = false;
+                    btn.innerText = 'Iniciar Sincronización';
+                    updateBadge(data.status);
+                    
+                    if (data.status === 'completed') {
+                        bar.classList.replace('bg-blue-600', 'bg-green-500');
+                    } else if (data.status === 'failed') {
+                        bar.classList.replace('bg-blue-600', 'bg-red-500');
+                    }
+                }
+            });
+    }
+
+    function updateBadge(status) {
+        const container = document.getElementById('status-badge');
+        let color = 'default';
+        let text = 'INACTIVO';
+        let extra = '';
+
+        if (status === 'running') { color = 'info'; text = 'EJECUTANDO'; extra = 'animate-pulse'; }
+        else if (status === 'completed') { color = 'success'; text = 'COMPLETADO'; }
+        else if (status === 'failed') { color = 'error'; text = 'FALLIDO'; }
+
+        container.innerHTML = `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-tight bg-${getBadgeColor(color)} ${extra}">${text}</span>`;
+    }
+
+    function getBadgeColor(type) {
+        const colors = {
+            'default': 'gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300',
+            'success': 'green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300',
+            'error': 'red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300',
+            'info': 'blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300'
+        };
+        return colors[type] || colors.default;
+    }
+
+    // Auto-start polling if already running
+    {% if status and status.status == 'running' %}
+        startPolling();
+    {% endif %}
+</script>
+{% endblock %}

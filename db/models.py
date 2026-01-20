@@ -626,3 +626,22 @@ class IngestionCheckpoint(Base):
     
     def __repr__(self):
         return f"<IngestionCheckpoint(type='{self.checkpoint_type}', key='{self.checkpoint_key}', status='{self.status}')>"
+    
+class SystemStatus(Base):
+    """Modelo para persistir el estado de tareas del sistema (ej: ingesta)."""
+    __tablename__ = 'system_status'
+    
+    task_name = Column(String(50), primary_key=True)
+    status = Column(String(20), default='idle', nullable=False,
+                    comment='Estado: idle, running, completed, failed')
+    progress = Column(Integer, default=0, nullable=False,
+                     comment='Porcentaje de progreso (0-100)')
+    message = Column(String(255), nullable=True,
+                    comment='Mensaje descriptivo del paso actual')
+    
+    # Auditoría
+    last_run = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
+    
+    def __repr__(self):
+        return f"<SystemStatus(task='{self.task_name}', status='{self.status}', progress={self.progress}%)>"

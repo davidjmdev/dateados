@@ -26,10 +26,13 @@ from ingestion.models_sync import TeamSync, PlayerSync, PlayerAwardsSync
 from ingestion.derived_tables import DerivedTablesGenerator
 from ingestion.config import API_DELAY, AWARDS_WORKERS
 from ingestion.utils import (
-    FatalIngestionError, safe_int, safe_float, 
-    convert_minutes_to_interval, parse_date,
-    get_or_create_player
+    FatalIngestionError, normalize_season, 
+    get_or_create_player, get_or_create_team, API_TIMEOUT,
+    get_max_workers, clear_memory, ProgressReporter,
+    parse_date, convert_minutes_to_interval, safe_int,
+    get_all_seasons, safe_float
 )
+
 from ingestion.parallel import run_worker_with_stagger, run_parallel_task
 
 logger = logging.getLogger(__name__)
@@ -677,32 +680,35 @@ class IncrementalIngestion:
         
         self.derived = DerivedTablesGenerator()
     
-    def run(self, limit_seasons: int = 3):
-        """Ejecuta ingesta incremental con premios en paralelo."""
-        session = get_session()
+    def run(self, limit_seasons: Optional[int] = None, reporter: Optional[ProgressReporter] = None):
+        """Ejecuta la sincronización incremental."""
+        limit_text = f"últimas {limit_seasons} temporadas" if limit_seasons else "todas las temporadas necesarias"
+        logger.info(f"Iniciando ingesta incremental ({limit_text})...")
+        if reporter: reporter.update(5, "Iniciando ingesta incremental...")
         
+        session = get_session()
         try:
-            # 1. Sincronizar estado de actividad
-            self.team_sync.sync_all(session)
-            new_players_count = self.player_sync.sync_all(session)
-            
-            # 2. Ingestar partidos recientes (Secuencial, suele ser poco)
-            today = date.today()
-            curr_year = today.year if today.month >= 10 else today.year - 1
+            # 1. Identificar temporadas a procesar
+            all_seasons = sorted(get_all_seasons(), reverse=True)
+            seasons_to_process = all_seasons[:limit_seasons] if limit_seasons else all_seasons
             
             new_seasons = set()
-            stop = False
             
-            for i in range(limit_seasons):
-                if stop: break
-                year = curr_year - i
-                season = f"{year}-{(year+1)%100:02d}"
-                
+            # 2. Procesar cada temporada
+            for i, season in enumerate(seasons_to_process):
+                msg = f"Procesando temporada {season}..."
+                logger.info(msg)
+                if reporter:
+                    # Progreso estimado (asumiendo que solemos mirar 1 o 2 temporadas en incremental)
+                    progress = 5 + int((i / len(seasons_to_process)) * 60)
+                    reporter.update(progress, msg)
+
+                stop = False
                 games_data = self.api.fetch_season_games(season)
                 if not games_data: continue
                 
                 today_str = date.today().isoformat()
-                for gd in games_data:
+                for j, gd in enumerate(games_data):
                     gid = gd['game_id']
                     local_date = gd['game_date']
                     
@@ -725,42 +731,65 @@ class IncrementalIngestion:
                         new_seasons.add(season)
                     elif res is False:
                         raise FatalIngestionError(f"Fallo no recuperable en partido incremental {gid}")
+                    
+                    if j % 10 == 0:
+                        clear_memory() # Liberar RAM periódicamente
+
                     time.sleep(API_DELAY)
+                
+                if stop:
+                    logger.info("Detectado partido ya existente y finalizado. Deteniendo búsqueda incremental.")
+                    break
             
             # 3. Regenerar tablas derivadas
             if new_seasons:
+                msg = "Recalculando tablas de estadísticas agregadas..."
+                logger.info(msg)
+                if reporter: reporter.update(70, msg)
                 self.derived.regenerate_for_seasons(session, list(new_seasons))
             
-            # 4. Actualizar premios en paralelo
+            # 4. Actualizar premios en paralelo (o secuencial en Render)
             active_player_ids = [pid for (pid,) in session.query(Player.id).filter(Player.is_active == True).order_by(Player.id).all()]
             if active_player_ids:
-                logger.info(f"Sincronizando premios para {len(active_player_ids)} jugadores activos...")
+                msg = f"Sincronizando premios para {len(active_player_ids)} jugadores activos..."
+                logger.info(msg)
+                if reporter: reporter.update(80, msg)
+                
+                workers = get_max_workers(AWARDS_WORKERS)
                 run_parallel_task(
                     awards_worker_func, 
                     active_player_ids, 
-                    AWARDS_WORKERS, 
+                    workers, 
                     "incremental_awards_batch",
                     lambda bid: f"Inc-Awards-Batch-{bid}"
                 )
             
             # 5. Actualizar biografías de jugadores si hay nuevos
-            if new_players_count > 0:
-                pending_bio = [pid for (pid,) in session.query(Player.id).filter(
-                    Player.height == None
-                ).all()]
-                if pending_bio:
-                    logger.info(f"Sincronizando biografías para {len(pending_bio)} jugadores nuevos...")
-                    run_parallel_task(
-                        player_info_worker_func,
-                        pending_bio,
-                        AWARDS_WORKERS,
-                        "incremental_player_info_batch",
-                        lambda bid: f"Inc-Bio-Batch-{bid}"
-                    )
-            else:
-                logger.info("No hay jugadores nuevos, saltando sincronización de biografías.")
+            pending_bio = [pid for (pid,) in session.query(Player.id).filter(
+                Player.height == None
+            ).all()]
+            if pending_bio:
+                msg = f"Sincronizando biografías para {len(pending_bio)} jugadores nuevos..."
+                logger.info(msg)
+                if reporter: reporter.update(90, msg)
+                
+                workers = get_max_workers(AWARDS_WORKERS)
+                run_parallel_task(
+                    player_info_worker_func,
+                    pending_bio,
+                    workers,
+                    "incremental_player_info_batch",
+                    lambda bid: f"Inc-Bio-Batch-{bid}"
+                )
             
+            if reporter: reporter.complete("Base de datos actualizada con éxito.")
             logger.info("✅ Ingesta incremental finalizada")
             
+        except Exception as e:
+            if reporter: reporter.fail(str(e))
+            logger.error(f"Error en ingesta incremental: {e}")
+            raise
         finally:
             session.close()
+            clear_memory()
+

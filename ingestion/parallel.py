@@ -68,15 +68,20 @@ def run_parallel_task(
 ):
     """Ejecuta una tarea en paralelo dividiendo los items entre los workers.
     
-    Args:
-        task_func: Función del worker
-        items: Lista de items a procesar
-        num_workers: Número de workers
-        prefix: Prefijo para logs y checkpoints
-        worker_name_func: Función que genera el nombre del worker basado en el batch_id
+    Si num_workers es 1, se ejecuta de forma secuencial para ahorrar memoria.
     """
     if not items:
         return
+
+    # Si solo hay 1 worker, ejecutamos secuencialmente para evitar overhead de procesos y RAM
+    if num_workers <= 1:
+        logger.info(f"Ejecutando tarea {prefix} de forma secuencial (1 worker)...")
+        try:
+            task_func(1, items)
+            return
+        except Exception as e:
+            logger.error(f"Error en tarea secuencial {prefix}: {e}")
+            raise
 
     chunk_size = max(1, len(items) // num_workers)
     chunks = [items[i:i + chunk_size] for i in range(0, len(items), chunk_size)]

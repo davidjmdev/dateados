@@ -213,3 +213,79 @@ def safe_int_or_none(value: Any) -> Optional[int]:
         val = int(float(value))
         return val if val > 0 else None
     except: return None
+
+
+class ProgressReporter:
+    """Maneja el reporte de progreso a la base de datos y logs."""
+    
+    def __init__(self, task_name: str, session_factory=None):
+        self.task_name = task_name
+        self.session_factory = session_factory
+        self.current_progress = 0
+        self.last_message = ""
+
+    def update(self, progress: int, message: str, status: str = "running"):
+        """Actualiza el estado en la base de datos."""
+        self.current_progress = progress
+        self.last_message = message
+        logger.info(f"[{self.task_name}] {progress}% - {message}")
+        
+        if self.session_factory:
+            from db.models import SystemStatus
+            from sqlalchemy.sql import func
+            session = self.session_factory()
+            try:
+                task = session.query(SystemStatus).filter_by(task_name=self.task_name).first()
+                if not task:
+                    task = SystemStatus(task_name=self.task_name)
+                    session.add(task)
+                
+                task.status = status
+                task.progress = progress
+                task.message = message
+                task.last_run = datetime.now()
+                session.commit()
+            except Exception as e:
+                logger.error(f"Error actualizando SystemStatus: {e}")
+                session.rollback()
+            finally:
+                session.close()
+
+    def complete(self, message: str = "Tarea completada con éxito"):
+        self.update(100, message, status="completed")
+
+    def fail(self, message: str):
+        self.update(self.current_progress, f"ERROR: {message}", status="failed")
+
+
+def get_max_workers(default_count: int) -> int:
+    """Determina el número máximo de workers basado en el entorno."""
+    import os
+    # En Render, solemos tener la variable RENDER=true
+    if os.getenv("RENDER") == "true" or os.getenv("WEB_MODE") == "true":
+        from ingestion.config import WEB_AWARDS_WORKERS
+        return WEB_AWARDS_WORKERS
+    return default_count
+
+
+def clear_memory():
+    """Limpia memoria y recolecta basura."""
+    import gc
+    gc.collect()
+
+
+def get_all_seasons(start_year: int = 1983) -> List[str]:
+    """Genera una lista de todas las temporadas de la NBA desde start_year hasta hoy."""
+    from datetime import datetime
+    current_year = datetime.now().year
+    # Si estamos en octubre o después, la temporada actual ya ha empezado (ej: 2024-25)
+    if datetime.now().month >= 10:
+        end_year = current_year
+    else:
+        end_year = current_year - 1
+        
+    seasons = []
+    for year in range(start_year, end_year + 1):
+        next_year = (year + 1) % 100
+        seasons.append(f"{year}-{next_year:02d}")
+    return seasons

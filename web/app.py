@@ -3,6 +3,21 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 
+import logging
+import sys
+from ingestion.config import LOG_FORMAT, LOG_DATE_FORMAT
+
+# Configurar logging global (tanto consola como archivo)
+logging.basicConfig(
+    level=logging.INFO,
+    format=LOG_FORMAT,
+    datefmt=LOG_DATE_FORMAT,
+    handlers=[
+        logging.FileHandler('logs/ingestion.log'),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+
 app = FastAPI(title="NBA Stats Web")
 
 # Configurar rutas de archivos estaticos y templates
@@ -18,6 +33,7 @@ from web.routes import seasons
 from web.routes import leaders
 from web.routes import games
 from web.routes import pencil
+from web.routes import admin
 
 # Incluir routers
 app.include_router(home.router)
@@ -27,6 +43,7 @@ app.include_router(seasons.router)
 app.include_router(leaders.router)
 app.include_router(games.router)
 app.include_router(pencil.router)
+app.include_router(admin.router)
 
 if __name__ == "__main__":
     import os

@@ -24,6 +24,7 @@ SPECIAL_EVENT_TEAM_IDS = {1610616833, 1610616834}
 
 # Paralelización
 AWARDS_WORKERS = 10  # Número de procesos simultáneos para sincronización de premios
+WEB_AWARDS_WORKERS = 1 # Número de procesos para ingesta desde web (bajo consumo RAM)
 WORKER_STAGGER_MIN = 1.0  # Retraso mínimo inicial para workers (segundos)
 WORKER_STAGGER_MAX = 10.0 # Retraso máximo inicial para workers (segundos)
 
