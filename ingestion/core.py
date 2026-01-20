@@ -688,13 +688,20 @@ class IncrementalIngestion:
         
         session = get_session()
         try:
-            # 1. Identificar temporadas a procesar
+            # 1. Sincronizar entidades base proactivamente
+            msg = "Sincronizando equipos y lista de jugadores..."
+            logger.info(msg)
+            if reporter: reporter.update(2, msg)
+            self.team_sync.sync_all(session)
+            self.player_sync.sync_all(session)
+
+            # 2. Identificar temporadas a procesar
             all_seasons = sorted(get_all_seasons(), reverse=True)
             seasons_to_process = all_seasons[:limit_seasons] if limit_seasons else all_seasons
             
             new_seasons = set()
             
-            # 2. Procesar cada temporada
+            # 3. Procesar cada temporada
             for i, season in enumerate(seasons_to_process):
                 msg = f"Procesando temporada {season}..."
                 logger.info(msg)
