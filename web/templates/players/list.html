@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% from "components/nba_components.html" import stats_table_header, pagination, card_container %}
+
+{% block title %}Jugadores - Dateados{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Jugadores</h1>
+        
+        <!-- Filters -->
+        <form class="flex flex-col md:flex-row gap-2 live-search-form" method="get" data-target="#players-table-container">
+            <div class="relative">
+                <input type="text" name="search" value="{{ search or '' }}" placeholder="Buscar jugador..." class="w-full md:w-64 pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </div>
+            </div>
+            
+            <select name="position" class="w-full md:w-auto px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm">
+                <option value="">Todas las posiciones</option>
+                <option value="Guard" {% if position == 'Guard' %}selected{% endif %}>Guard</option>
+                <option value="Forward" {% if position == 'Forward' %}selected{% endif %}>Forward</option>
+                <option value="Center" {% if position == 'Center' %}selected{% endif %}>Center</option>
+            </select>
+            
+            <div class="flex items-center space-x-2 px-2">
+                <input type="hidden" name="active_only" value="0">
+                <input type="checkbox" name="active_only" id="active_only" value="1" {% if active_only %}checked{% endif %} class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded">
+                <label for="active_only" class="text-sm text-gray-700 dark:text-gray-300">Solo activos</label>
+            </div>
+            
+            {% if search or position or active_only %}
+            <a href="/players" class="px-4 py-2 bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 text-sm font-medium transition text-center">Limpiar</a>
+            {% endif %}
+        </form>
+    </div>
+    
+    <!-- Table -->
+    {% call card_container() %}
+        {% include "players/_table.html" %}
+    {% endcall %}
+</div>
+{% endblock %}

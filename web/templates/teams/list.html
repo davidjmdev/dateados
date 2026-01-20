@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% from "components/nba_components.html" import card_container %}
+
+{% block title %}Equipos - Dateados{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Equipos de la NBA</h1>
+    </div>
+
+    {% for conf_name, conf_color, conf_id in [('Conferencia Este', 'blue', 'East'), ('Conferencia Oeste', 'red', 'West')] %}
+    <!-- {{ conf_name }} -->
+    <div class="space-y-6 mb-8">
+        <div class="flex items-center space-x-3 pb-2 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-xl font-bold text-{{ conf_color }}-800 dark:text-{{ conf_color }}-400">{{ conf_name }}</h2>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {% for division, teams in teams_by_conf[conf_id].items() %}
+            {% call card_container(title=division ~ " Division") %}
+                <ul class="divide-y divide-gray-100 dark:divide-gray-700">
+                    {% for team in teams %}
+                    <li>
+                        <a href="/teams/{{ team.id }}" class="block hover:bg-gray-50 dark:hover:bg-gray-700 transition duration-150">
+                            <div class="px-4 py-3 flex items-center">
+                                <div class="h-8 w-8 flex-shrink-0 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center text-xs font-bold text-gray-500 mr-3 p-1">
+                                    <img src="https://cdn.nba.com/logos/nba/{{ team.id }}/primary/L/logo.svg" 
+                                         alt="{{ team.abbreviation }}" 
+                                         onerror="this.onerror=null; this.src='https://via.placeholder.com/32?text={{ team.abbreviation }}'"
+                                         class="h-full w-full object-contain">
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm font-bold text-gray-900 dark:text-gray-100 truncate">{{ team.full_name }}</p>
+                                    <p class="text-[10px] uppercase font-bold text-gray-400 dark:text-gray-500 tracking-wider truncate">{{ team.city }}</p>
+                                </div>
+                            </div>
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            {% endcall %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

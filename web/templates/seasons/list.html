@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Temporadas - Dateados{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Temporadas NBA</h1>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        {% for season in seasons %}
+        <a href="/seasons/{{ season }}" class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-400 hover:shadow-lg transition-all duration-200 group relative overflow-hidden">
+            <div class="flex items-center justify-between relative z-10">
+                <div class="font-black text-xl text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 tracking-tight">{{ season }}</div>
+                <div class="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-700 flex items-center justify-center group-hover:bg-blue-50 dark:group-hover:bg-blue-900/30 transition-colors">
+                    <svg class="h-4 w-4 text-gray-400 dark:text-gray-500 group-hover:text-blue-500 dark:group-hover:text-blue-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+            </div>
+            <!-- Decorative element -->
+            <div class="absolute -right-2 -bottom-2 text-6xl font-black text-gray-50 dark:text-gray-700/20 select-none group-hover:text-blue-50 dark:group-hover:text-blue-800/10 transition-colors">
+                {{ season[-2:] }}
+            </div>
+        </a>
+        {% else %}
+        <div class="col-span-full py-12 text-center text-gray-500 dark:text-gray-400">
+            No se encontraron temporadas registradas.
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+

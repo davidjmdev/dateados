@@ -1,0 +1,35 @@
+<div id="leaders-grid-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {% set categories = [
+        ('pts', 'Puntos', 'PPG'),
+        ('reb', 'Rebotes', 'RPG'),
+        ('ast', 'Asistencias', 'APG'),
+        ('stl', 'Robos', 'SPG'),
+        ('blk', 'Bloqueos', 'BPG')
+    ] %}
+
+    {% for key, label, unit in categories %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+        <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 border-b border-gray-100 dark:border-gray-600 flex justify-between items-center">
+            <h3 class="font-bold text-gray-800 dark:text-gray-200">{{ label }}</h3>
+            <span class="text-[10px] font-bold bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 px-2 py-1 rounded uppercase tracking-wider">{{ unit }}</span>
+        </div>
+        <ul class="divide-y divide-gray-100 dark:divide-gray-700">
+            {% for player in leaders[key] %}
+            <li class="hover:bg-gray-50 dark:hover:bg-gray-700 transition p-3 flex items-center justify-between cursor-pointer" onclick="window.location='/players/{{ player.id }}'">
+                <div class="flex items-center space-x-3 overflow-hidden">
+                    <span class="text-gray-400 dark:text-gray-500 font-mono w-4 text-xs">{{ loop.index }}</span>
+                    <div class="flex items-center group overflow-hidden">
+                        <img src="https://cdn.nba.com/headshots/nba/latest/260x190/{{ player.id }}.png" 
+                             alt="" 
+                             onerror="this.style.display='none'"
+                             class="h-8 w-8 rounded-full bg-gray-100 dark:bg-gray-700 object-cover mr-2 flex-shrink-0">
+                        <span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ player.full_name }}</span>
+                    </div>
+                </div>
+                <span class="font-bold text-gray-900 dark:text-gray-100">{{ "%.1f"|format(player.value) }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endfor %}
+</div>

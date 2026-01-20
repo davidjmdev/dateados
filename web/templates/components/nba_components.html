@@ -1,0 +1,100 @@
+{# components/nba_components.html #}
+
+{% macro stats_table_header(columns) %}
+<thead class="nba-table-header">
+    <tr>
+        {% for col in columns %}
+        <th class="px-3 py-2 {{ col.class or 'text-center' }} {% if col.highlight %}bg-gray-100 dark:bg-gray-600 text-gray-900 dark:text-gray-100 font-bold{% endif %}">
+            {{ col.label }}
+        </th>
+        {% endfor %}
+    </tr>
+</thead>
+{% endmacro %}
+
+{% macro summary_row(label, data_cols, colspan=1) %}
+<tr class="nba-row-summary">
+    <td class="px-3 py-2 sticky left-0 nba-row-summary whitespace-nowrap uppercase tracking-wider" colspan="{{ colspan }}">
+        {{ label }}
+    </td>
+    {% for val in data_cols %}
+    <td class="px-2 py-2 text-center {% if val.highlight %}bg-slate-200 dark:bg-slate-700{% endif %}">
+        {{ val.value }}
+    </td>
+    {% endfor %}
+</tr>
+{% endmacro %}
+
+{% macro badge(text, type='default', class='') %}
+{% set colors = {
+    'default': 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300',
+    'success': 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300',
+    'error': 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300',
+    'warning': 'bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300',
+    'info': 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300'
+} %}
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-tight {{ colors[type] or colors['default'] }} {{ class }}">
+    {{ text }}
+</span>
+{% endmacro %}
+
+{% macro pagination(page, total_pages, base_url, params_dict) %}
+{% if total_pages > 1 %}
+<div class="bg-white dark:bg-gray-800 px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between sm:px-6">
+    <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+        <div>
+            <p class="text-sm text-gray-700 dark:text-gray-300">
+                Página <span class="font-medium">{{ page }}</span> de <span class="font-medium">{{ total_pages }}</span>
+            </p>
+        </div>
+        <div>
+            <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                {% set ns = namespace(query_str="") %}
+                {% for k, v in params_dict.items() %}
+                    {% if v is not none and v != '' %}
+                        {% set ns.query_str = ns.query_str ~ k ~ '=' ~ v ~ '&' %}
+                    {% endif %}
+                {% endfor %}
+                {% set connector = '?' ~ ns.query_str %}
+
+                {% if page > 1 %}
+                <a href="{{ base_url }}{{ connector }}page={{ page - 1 }}" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600">
+                    <span class="sr-only">Anterior</span>
+                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    </svg>
+                </a>
+                {% endif %}
+                
+                {% if page < total_pages %}
+                <a href="{{ base_url }}{{ connector }}page={{ page + 1 }}" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600">
+                    <span class="sr-only">Siguiente</span>
+                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                    </svg>
+                </a>
+                {% endif %}
+            </nav>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endmacro %}
+
+{% macro card_container(title=None, icon_url=None, class='') %}
+<div class="nba-card {{ class }}">
+    {% if title %}
+    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+            {% if icon_url %}
+            <img src="{{ icon_url }}" class="h-6 w-6 object-contain" alt="" onerror="this.style.display='none'">
+            {% endif %}
+            <h3 class="font-bold text-gray-900 dark:text-gray-100">{{ title }}</h3>
+        </div>
+    </div>
+    {% endif %}
+    <div class="p-0">
+        {{ caller() }}
+    </div>
+</div>
+{% endmacro %}

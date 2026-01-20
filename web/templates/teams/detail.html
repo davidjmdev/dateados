@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% from "components/nba_components.html" import stats_table_header, card_container %}
+
+{% block title %}{{ team.full_name }} - Dateados{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    
+    <!-- Team Header -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+        <div class="bg-gradient-to-r from-slate-900 to-slate-800 h-32 relative"></div>
+        <div class="px-6 pb-6 relative">
+            <div class="flex flex-col md:flex-row items-center md:items-end -mt-12 mb-4 gap-6">
+                <div class="h-32 w-32 rounded-full border-4 border-white dark:border-gray-800 bg-white dark:bg-gray-700 flex items-center justify-center shadow-md p-2">
+                    <img src="https://cdn.nba.com/logos/nba/{{ team.id }}/primary/L/logo.svg" 
+                         alt="{{ team.full_name }}" 
+                         onerror="this.onerror=null; this.src='https://via.placeholder.com/150?text={{ team.abbreviation }}'"
+                         class="h-full w-full object-contain">
+                </div>
+                <div class="text-center md:text-left flex-1">
+                    <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">{{ team.full_name }}</h1>
+                    <p class="text-gray-500 dark:text-gray-400 font-medium">{{ team.conference }} Conference • {{ team.division }} Division</p>
+                </div>
+                <div class="flex flex-col items-center md:items-end">
+                    <div class="text-3xl font-bold text-gray-900 dark:text-gray-100">{{ record.wins }}-{{ record.losses }}</div>
+                    <div class="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">Record {{ season }}</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Season Navigation Bar -->
+        <div class="px-6 py-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex items-center justify-between">
+            <div class="flex items-center space-x-4">
+                <span class="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Temporada:</span>
+                <form method="get" class="flex items-center">
+                    <select name="season" onchange="this.form.submit()" class="bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 text-gray-900 dark:text-gray-100 text-sm rounded-md focus:ring-blue-500 focus:border-blue-500 block p-1.5 shadow-sm">
+                        {% for s in all_seasons %}
+                        <option value="{{ s }}" {% if s == season %}selected{% endif %}>{{ s }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+            </div>
+            
+            <div class="hidden md:flex items-center space-x-6">
+                <div class="text-xs font-medium"><span class="text-gray-500 dark:text-gray-400 uppercase tracking-tighter mr-1">PCT:</span> <span class="font-bold text-gray-900 dark:text-gray-100">{{ "%.3f"|format(record.win_percentage) }}</span></div>
+                <div class="text-xs font-medium"><span class="text-gray-500 dark:text-gray-400 uppercase tracking-tighter mr-1">Conf:</span> <span class="font-bold text-gray-900 dark:text-gray-100">{{ team.conference }}</span></div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- Main Content (Roster) -->
+        <div class="lg:col-span-2 space-y-8">
+            {% call card_container(title="Plantilla " ~ season) %}
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-sm">
+                        {{ stats_table_header([
+                            {'label': 'Jugador', 'class': 'text-left'},
+                            {'label': 'Pos'},
+                            {'label': 'Altura'},
+                            {'label': 'Peso'},
+                            {'label': 'Exp'},
+                            {'label': 'Escuela'}
+                        ]) }}
+                        <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                            {% for player_season in roster %}
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition cursor-pointer" onclick="window.location='/players/{{ player_season.player.id }}'">
+                                <td class="px-3 py-3">
+                                    <div class="flex items-center group">
+                                        <div class="h-8 w-8 rounded-full bg-gray-100 dark:bg-gray-700 mr-3 flex-shrink-0 overflow-hidden border border-gray-50 dark:border-gray-600">
+                                            <img src="https://cdn.nba.com/headshots/nba/latest/260x190/{{ player_season.player.id }}.png" 
+                                                 alt="" 
+                                                 onerror="this.onerror=null; this.src='https://via.placeholder.com/50?text={{ player_season.player.full_name[:1] }}'"
+                                                 class="h-full w-full object-cover">
+                                        </div>
+                                        <div class="font-bold text-gray-900 dark:text-gray-100">{{ player_season.player.full_name }}</div>
+                                    </div>
+                                </td>
+                                <td class="px-2 py-3 text-center text-gray-500 dark:text-gray-400 font-medium">{{ player_season.player.position or '-' }}</td>
+                                <td class="px-2 py-3 text-center text-gray-500 dark:text-gray-400">{{ player_season.player.height or '-' }}</td>
+                                <td class="px-2 py-3 text-center text-gray-500 dark:text-gray-400">{{ player_season.player.weight or '-' }} lbs</td>
+                                <td class="px-2 py-3 text-center text-gray-500 dark:text-gray-400">
+                                    {{ player_season.player.experience }} 
+                                    {% if player_season.player.experience == 1 %}temp.{% else %}temps.{% endif %}
+                                </td>
+                                <td class="px-2 py-3 text-gray-500 dark:text-gray-400 truncate max-w-[150px]">{{ player_season.player.school or '-' }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="py-8 text-center text-gray-500 dark:text-gray-400">No hay información de plantilla disponible.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endcall %}
+        </div>
+        
+        <!-- Sidebar (Recent Games) -->
+        <div class="lg:col-span-1 space-y-6">
+            {% call card_container(title="Últimos Partidos") %}
+                <div class="space-y-1 p-2">
+                    {% for game in recent_games %}
+                    <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition cursor-pointer" onclick="window.location='/games/{{ game.id }}'">
+                        <div class="text-[10px] font-mono text-gray-500 dark:text-gray-400 w-16">{{ game.date }}</div>
+                        <div class="flex-1 px-2 text-center text-sm text-gray-900 dark:text-gray-100">
+                            {% if game.home_team_id == team.id %}
+                                <span class="text-gray-400 mr-1 font-normal">vs</span><span class="font-bold">{{ game.away_team.abbreviation }}</span>
+                            {% else %}
+                                <span class="text-gray-400 mr-1 font-normal">@</span><span class="font-bold">{{ game.home_team.abbreviation }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            {% set is_winner = (game.home_team_id == team.id and game.home_score > game.away_score) or (game.away_team_id == team.id and game.away_score > game.home_score) %}
+                            <span class="inline-flex items-center justify-center w-5 h-5 text-[10px] font-black {% if is_winner %}text-green-700 bg-green-100 dark:bg-green-900/30 dark:text-green-400{% else %}text-red-700 bg-red-100 dark:bg-red-900/30 dark:text-red-400{% endif %} rounded">
+                                {{ 'W' if is_winner else 'L' }}
+                            </span>
+                            <span class="text-xs font-bold text-gray-900 dark:text-gray-100 w-12 text-right">
+                                {% if game.home_team_id == team.id %}
+                                    {{ game.home_score }}-{{ game.away_score }}
+                                {% else %}
+                                    {{ game.away_score }}-{{ game.home_score }}
+                                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-center text-gray-500 dark:text-gray-400 py-4 text-sm">No hay partidos recientes.</div>
+                    {% endfor %}
+                </div>
+            {% endcall %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+

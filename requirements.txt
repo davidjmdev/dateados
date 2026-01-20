@@ -1,0 +1,22 @@
+# Base de datos
+psycopg2-binary
+SQLAlchemy
+
+# Configuracion
+python-dotenv
+
+# NBA API
+nba_api
+
+# Utilidades
+python-dateutil
+pandas
+
+# Web
+fastapi
+uvicorn[standard]
+jinja2
+python-multipart
+
+# Testing
+pytest

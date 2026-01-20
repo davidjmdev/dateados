@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% from "components/nba_components.html" import card_container %}
+
+{% block title %}Alto el lápiz 3+1{% endblock %}
+
+{% block head %}
+<style>
+    .letter-btn {
+        transition: all 0.2s;
+        font-size: 0.65rem;
+    }
+    @media (min-width: 640px) {
+        .letter-btn {
+            font-size: 0.75rem;
+        }
+    }
+    .letter-btn.active {
+        background-color: #f97316;
+        color: white;
+        transform: scale(1.1);
+        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        border-color: #f97316;
+    }
+    .category-card {
+        transition: all 0.3s;
+    }
+    .category-card:hover {
+        transform: translateY(-2px);
+    }
+    /* Total concealment of scrollbar */
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+    .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="text-center space-y-1">
+        <h1 class="text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white sm:text-4xl">
+            Alto el lápiz <span class="text-orange-500">3+1</span>
+        </h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400 max-w-xl mx-auto">
+            El nombre o apellido del jugador debe empezar por la letra elegida.
+        </p>
+    </div>
+
+    <!-- Letter Selector - Absolute Single Row -->
+    {% call card_container(class="p-2 sm:p-3") %}
+        <div class="flex items-center justify-between gap-0.5 overflow-x-auto no-scrollbar">
+            {% for char in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" %}
+            <button onclick="selectLetter('{{ char }}')" 
+                    id="btn-{{ char }}"
+                    class="letter-btn flex-1 min-w-[20px] h-7 sm:h-9 flex items-center justify-center rounded border border-gray-100 dark:border-gray-700 font-bold hover:border-orange-500 hover:text-orange-500 dark:hover:border-orange-500 transition-all">
+                {{ char }}
+            </button>
+            {% endfor %}
+        </div>
+    {% endcall %}
+
+    <!-- Game Board -->
+    <div id="game-board" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 opacity-50 pointer-events-none transition-opacity duration-500">
+        <!-- Categories -->
+        {% set categories = [
+            {'id': 'champion', 'name': 'Campeón', 'icon': '🏆', 'desc': 'Al menos un anillo.'},
+            {'id': 'all_star', 'name': 'All-Star', 'icon': '⭐', 'desc': 'Seleccionado All-Star.'},
+            {'id': 'lottery', 'name': 'Lotería', 'icon': '🎰', 'desc': 'Draft top 14.'},
+            {'id': 'conferences', 'name': 'Ambas Conferencias', 'icon': '↔️', 'desc': 'Jugó en el Este y Oeste.'},
+            {'id': 'non_mvp', 'name': 'Premio no MVP', 'icon': '🏅', 'desc': 'DPOY, ROY, 6MOY, etc.'},
+            {'id': 'spanish_mate', 'name': 'Compañero Español', 'icon': '🇪🇸', 'desc': 'Compartió equipo.'},
+            {'id': 'european', 'name': 'Jugador Europeo', 'icon': '🇪🇺', 'desc': 'Nacionalidad Europa.'},
+            {'id': 'lebron_mate', 'name': 'Jugó con LeBron', 'icon': '👑', 'desc': 'Compañero de James.'}
+        ] %}
+
+        {% for cat in categories %}
+        <div class="category-card bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 space-y-3 flex flex-col">
+            <div class="flex items-center gap-2">
+                <span class="text-xl">{{ cat.icon }}</span>
+                <div class="min-w-0">
+                    <h3 class="font-bold text-gray-900 dark:text-white text-sm truncate">{{ cat.name }}</h3>
+                    <p class="text-[10px] text-gray-400 truncate">{{ cat.desc }}</p>
+                </div>
+            </div>
+
+            <div class="relative">
+                <input type="text" 
+                       id="input-{{ cat.id }}"
+                       onkeypress="if(event.key === 'Enter') validate('{{ cat.id }}')"
+                       placeholder="Nombre..."
+                       class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all text-xs">
+                <button onclick="validate('{{ cat.id }}')"
+                        class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-orange-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+
+            <div id="result-{{ cat.id }}" class="min-h-[32px] flex items-center justify-center text-xs font-medium rounded-lg"></div>
+
+            <div class="mt-1 space-y-2 border-t border-gray-50 dark:border-gray-700/50 pt-3">
+                <h4 class="text-[9px] uppercase tracking-wider font-bold text-gray-400">Top 10 Sugerencias</h4>
+                <div id="hints-{{ cat.id }}" class="text-[11px] space-y-0.5 text-gray-600 dark:text-gray-400">
+                    <div class="text-gray-400 italic">...</div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Reset -->
+    <div class="flex justify-center pb-4">
+        <button onclick="resetGame()" class="px-5 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-full text-xs font-semibold transition-colors">
+            Reiniciar
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentLetter = '';
+
+    async function selectLetter(letter) {
+        currentLetter = letter;
+        document.querySelectorAll('.letter-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById('btn-' + letter).classList.add('active');
+        document.getElementById('game-board').classList.remove('opacity-50', 'pointer-events-none');
+        
+        document.querySelectorAll('input').forEach(input => {
+            input.value = '';
+            input.parentElement.classList.remove('ring-green-500', 'ring-red-500');
+        });
+        document.querySelectorAll('[id^="result-"]').forEach(res => {
+            res.innerHTML = '';
+            res.className = 'min-h-[32px] flex items-center justify-center text-xs font-medium rounded-lg';
+        });
+
+        const categories = ['champion', 'all_star', 'lottery', 'conferences', 'non_mvp', 'spanish_mate', 'european', 'lebron_mate'];
+        
+        categories.forEach(async (catId) => {
+            const hintDiv = document.getElementById('hints-' + catId);
+            hintDiv.innerHTML = '<div class="animate-pulse space-y-1"><div class="h-1.5 bg-gray-100 dark:bg-gray-700 rounded w-full"></div></div>';
+            
+            try {
+                const response = await fetch(`/api/pencil/hint?category=${catId}&letter=${letter}`);
+                const data = await response.json();
+                
+                if (data.hints && data.hints.length > 0) {
+                    let html = '<div class="space-y-0.5">';
+                    data.hints.forEach((p, index) => {
+                        html += `<div class="py-0.5 hover:text-orange-500 cursor-pointer truncate" onclick="fillInput('${catId}', '${p.full_name}')">
+                                    ${index + 1}. ${p.full_name}
+                                 </div>`;
+                    });
+                    html += '</div>';
+                    hintDiv.innerHTML = html;
+                } else {
+                    hintDiv.innerHTML = '<span class="text-gray-400 italic">Sin sugerencias</span>';
+                }
+            } catch (error) {
+                hintDiv.innerHTML = '<span class="text-red-400">Error</span>';
+            }
+        });
+    }
+
+    async function validate(categoryId) {
+        if (!currentLetter) return;
+        const input = document.getElementById('input-' + categoryId);
+        const resultDiv = document.getElementById('result-' + categoryId);
+        const name = input.value.trim();
+        if (!name) return;
+
+        resultDiv.innerHTML = '<div class="flex items-center gap-1"><div class="w-3 h-3 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div></div>';
+        resultDiv.className = 'min-h-[32px] flex items-center justify-center text-xs font-medium rounded-lg text-gray-500';
+
+        try {
+            const response = await fetch(`/api/pencil/validate?category=${categoryId}&letter=${currentLetter}&name=${encodeURIComponent(name)}`);
+            const data = await response.json();
+            
+            if (data.valid) {
+                resultDiv.innerHTML = '✅ ' + data.player.full_name;
+                resultDiv.className = 'min-h-[32px] flex items-center justify-center text-xs font-medium rounded-lg bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 px-2 text-center';
+            } else {
+                resultDiv.innerHTML = '❌ ' + data.message;
+                resultDiv.className = 'min-h-[32px] flex items-center justify-center text-xs font-medium rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 px-2 text-center';
+            }
+        } catch (error) {
+            resultDiv.innerHTML = 'Error';
+            resultDiv.className = 'min-h-[32px] flex items-center justify-center text-xs font-medium rounded-lg text-red-500';
+        }
+    }
+
+    function fillInput(categoryId, name) {
+        document.getElementById('input-' + categoryId).value = name;
+        validate(categoryId);
+    }
+
+    function resetGame() {
+        currentLetter = '';
+        document.querySelectorAll('.letter-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById('game-board').classList.add('opacity-50', 'pointer-events-none');
+        document.querySelectorAll('input').forEach(input => input.value = '');
+        document.querySelectorAll('[id^="result-"]').forEach(res => {
+            res.innerHTML = '';
+            res.className = 'min-h-[32px] flex items-center justify-center text-xs font-medium rounded-lg';
+        });
+        document.querySelectorAll('[id^="hints-"]').forEach(h => {
+            h.innerHTML = '<div class="text-gray-400 italic">Selecciona letra</div>';
+        });
+    }
+</script>
+{% endblock %}

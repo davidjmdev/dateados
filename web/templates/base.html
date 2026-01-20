@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Dateados{% endblock %}</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+      }
+    </script>
+    
+    <!-- Dark mode initialization (prevent flash) -->
+    <script>
+      (function() {
+        const theme = localStorage.getItem('theme');
+        if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/static/icon.png">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style type="text/tailwindcss">
+        @layer base {
+            body { font-family: 'Inter', sans-serif; }
+        }
+        
+        @layer components {
+            .custom-scrollbar::-webkit-scrollbar {
+                width: 4px;
+            }
+            .custom-scrollbar::-webkit-scrollbar-track {
+                background: transparent;
+            }
+            .custom-scrollbar::-webkit-scrollbar-thumb {
+                background: #4b5563;
+                border-radius: 10px;
+            }
+            .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                background: #6b7280;
+            }
+
+            /* NBA Design System - Standardized Classes */
+            .nba-card {
+                @apply bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden;
+            }
+            .nba-row-summary {
+                @apply bg-slate-100 dark:bg-slate-800 font-bold border-t-2 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-50;
+            }
+            .nba-table-header {
+                @apply bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider text-[10px];
+            }
+        }
+    </style>
+    
+    {% block head %}{% endblock %}
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen flex flex-col">
+
+    <!-- Navigation -->
+    <nav class="bg-slate-900 text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <!-- Logo -->
+                <div class="flex-shrink-0 flex items-center">
+                    <a href="/" class="font-bold text-2xl tracking-tight text-white flex items-center gap-3">
+                        <img src="/static/icon.png" alt="Dateados" class="w-10 h-10">
+                        Dateados
+                    </a>
+                </div>
+                
+                <!-- Desktop Menu -->
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-4">
+                        <a href="/" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-slate-800 {% if active_page == 'home' %}bg-slate-800 text-orange-500{% else %}text-gray-300{% endif %}">Inicio</a>
+                        <a href="/players" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-slate-800 {% if active_page == 'players' %}bg-slate-800 text-orange-500{% else %}text-gray-300{% endif %}">Jugadores</a>
+                        <a href="/teams" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-slate-800 {% if active_page == 'teams' %}bg-slate-800 text-orange-500{% else %}text-gray-300{% endif %}">Equipos</a>
+                        <a href="/seasons" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-slate-800 {% if active_page == 'seasons' %}bg-slate-800 text-orange-500{% else %}text-gray-300{% endif %}">Temporadas</a>
+                        <a href="/leaders" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-slate-800 {% if active_page == 'leaders' %}bg-slate-800 text-orange-500{% else %}text-gray-300{% endif %}">Líderes</a>
+                        <a href="/games" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-slate-800 {% if active_page == 'games' %}bg-slate-800 text-orange-500{% else %}text-gray-300{% endif %}">Partidos</a>
+                        <a href="/pencil" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-slate-800 {% if active_page == 'pencil' %}bg-slate-800 text-orange-500{% else %}text-gray-300{% endif %}">Alto el lápiz</a>
+                    </div>
+                </div>
+                
+                <!-- Theme Toggle & Mobile Menu Button -->
+                <div class="flex items-center space-x-2">
+                    <!-- Theme Toggle Button -->
+                    <button id="theme-toggle" type="button" class="p-2 rounded-md text-gray-400 hover:text-white hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-600" title="Cambiar tema">
+                        <!-- Sun icon (shown in dark mode) -->
+                        <svg id="theme-icon-light" class="hidden h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                        <!-- Moon icon (shown in light mode) -->
+                        <svg id="theme-icon-dark" class="hidden h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                        </svg>
+                        <!-- Auto icon (shown in auto mode) -->
+                        <svg id="theme-icon-auto" class="hidden h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                    </button>
+                    
+                    <!-- Mobile Menu Button -->
+                    <div class="-mr-2 flex md:hidden">
+                        <button type="button" onclick="document.getElementById('mobile-menu').classList.toggle('hidden')" class="bg-slate-800 inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-white hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white">
+                            <span class="sr-only">Open main menu</span>
+                            <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Menu -->
+        <div class="hidden md:hidden" id="mobile-menu">
+            <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+                <a href="/" class="block px-3 py-2 rounded-md text-base font-medium text-white hover:bg-slate-700">Inicio</a>
+                <a href="/players" class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-slate-700">Jugadores</a>
+                <a href="/teams" class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-slate-700">Equipos</a>
+                <a href="/seasons" class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-slate-700">Temporadas</a>
+                <a href="/leaders" class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-slate-700">Líderes</a>
+                <a href="/games" class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-slate-700">Partidos</a>
+                <a href="/pencil" class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-slate-700">Alto el lápiz</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Content -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-auto">
+        <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+            <p class="text-center text-sm text-gray-500 dark:text-gray-400">
+                &copy; 2026 Dateados Project.
+            </p>
+        </div>
+    </footer>
+
+    <!-- Theme Toggle Script -->
+    <script>
+        (function() {
+            const themeToggle = document.getElementById('theme-toggle');
+            const iconLight = document.getElementById('theme-icon-light');
+            const iconDark = document.getElementById('theme-icon-dark');
+            const iconAuto = document.getElementById('theme-icon-auto');
+            
+            // Theme states: 'light', 'dark', 'auto'
+            function getStoredTheme() {
+                return localStorage.getItem('theme') || 'auto';
+            }
+            
+            function setTheme(theme) {
+                localStorage.setItem('theme', theme);
+                applyTheme(theme);
+                updateIcon(theme);
+            }
+            
+            function applyTheme(theme) {
+                if (theme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                } else if (theme === 'light') {
+                    document.documentElement.classList.remove('dark');
+                } else {
+                    // Auto: follow system preference
+                    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                        document.documentElement.classList.add('dark');
+                    } else {
+                        document.documentElement.classList.remove('dark');
+                    }
+                }
+            }
+            
+            function updateIcon(theme) {
+                iconLight.classList.add('hidden');
+                iconDark.classList.add('hidden');
+                iconAuto.classList.add('hidden');
+                
+                if (theme === 'dark') {
+                    iconLight.classList.remove('hidden'); // Show sun to switch to light
+                } else if (theme === 'light') {
+                    iconAuto.classList.remove('hidden'); // Show auto to switch to auto
+                } else {
+                    iconDark.classList.remove('hidden'); // Show moon to switch to dark
+                }
+            }
+            
+            function cycleTheme() {
+                const current = getStoredTheme();
+                let next;
+                if (current === 'auto') {
+                    next = 'dark';
+                } else if (current === 'dark') {
+                    next = 'light';
+                } else {
+                    next = 'auto';
+                }
+                setTheme(next);
+            }
+            
+            // Initialize
+            const currentTheme = getStoredTheme();
+            applyTheme(currentTheme);
+            updateIcon(currentTheme);
+            
+            // Listen for clicks
+            themeToggle.addEventListener('click', cycleTheme);
+            
+            // Listen for system preference changes (when in auto mode)
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
+                if (getStoredTheme() === 'auto') {
+                    applyTheme('auto');
+                }
+            });
+        })();
+    </script>
+
+    {% block scripts %}{% endblock %}
+
+    <!-- Live Search Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            let debounceTimer;
+            const liveSearchForms = document.querySelectorAll('.live-search-form');
+
+            liveSearchForms.forEach(form => {
+                const targetSelector = form.getAttribute('data-target');
+                
+                const handleInput = (e) => {
+                    clearTimeout(debounceTimer);
+                    debounceTimer = setTimeout(() => {
+                        updateResults(form, targetSelector);
+                    }, 300);
+                };
+
+                // Listen to text inputs and selects
+                form.querySelectorAll('input[type="text"], input[type="date"], select, input[type="checkbox"]').forEach(input => {
+                    input.addEventListener('input', handleInput);
+                    if (input.tagName === 'SELECT' || input.type === 'checkbox' || input.type === 'date') {
+                        input.addEventListener('change', handleInput);
+                    }
+                });
+
+                // Prevent form submission
+                form.addEventListener('submit', (e) => e.preventDefault());
+                
+                // Initial binding
+                rebindDynamicElements(form, targetSelector);
+            });
+
+            async function updateResults(form, targetSelector) {
+                const formData = new FormData(form);
+                const params = new URLSearchParams(formData);
+                
+                // Construct URL
+                let url = form.action || window.location.pathname;
+                const searchParams = params.toString();
+                if (searchParams) {
+                    url += (url.includes('?') ? '&' : '?') + searchParams;
+                }
+
+                await fetchAndReplace(url, form, targetSelector);
+            }
+
+            async function fetchAndReplace(url, form, targetSelector) {
+                const container = document.querySelector(targetSelector);
+                if (!container) return;
+
+                container.style.opacity = '0.5';
+                container.style.transition = 'opacity 0.2s';
+
+                try {
+                    const response = await fetch(url, {
+                        headers: { 'X-Live-Search': 'true' }
+                    });
+
+                    if (response.ok) {
+                        const html = await response.text();
+                        // Re-query to ensure we have the latest element in DOM
+                        const currentContainer = document.querySelector(targetSelector);
+                        if (currentContainer) {
+                            currentContainer.outerHTML = html;
+                            window.history.pushState({}, '', url);
+                            rebindDynamicElements(form, targetSelector);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error fetching results:', error);
+                } finally {
+                    const finalContainer = document.querySelector(targetSelector);
+                    if (finalContainer) finalContainer.style.opacity = '1';
+                }
+            }
+
+            function rebindDynamicElements(form, targetSelector) {
+                const container = document.querySelector(targetSelector);
+                if (!container) return;
+                
+                // Pagination links
+                container.querySelectorAll('nav a').forEach(link => {
+                    link.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        fetchAndReplace(link.href, form, targetSelector);
+                    });
+                });
+
+                // "Clear" links
+                form.querySelectorAll('a').forEach(link => {
+                    try {
+                        const linkUrl = new URL(link.href, window.location.origin);
+                        const formUrl = new URL(form.action || window.location.href, window.location.origin);
+                        
+                        if (linkUrl.pathname === formUrl.pathname && linkUrl.search === '') {
+                            // Only add if it doesn't have our listener yet
+                            if (!link.dataset.listenerBound) {
+                                link.addEventListener('click', (e) => {
+                                    e.preventDefault();
+                                    form.reset();
+                                    form.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+                                    fetchAndReplace(formUrl.href, form, targetSelector);
+                                });
+                                link.dataset.listenerBound = 'true';
+                            }
+                        }
+                    } catch(e) {}
+                });
+            }
+        });
+    </script>
+</body>
+
+</html>

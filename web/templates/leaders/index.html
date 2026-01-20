@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% from "components/nba_components.html" import card_container %}
+
+{% block title %}Líderes - Dateados{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Líderes de la Temporada</h1>
+        
+        <form method="get" class="flex items-center space-x-2 live-search-form" data-target="#leaders-grid-container">
+            <select name="season" class="pl-4 pr-10 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm">
+                {% for s in all_seasons %}
+                <option value="{{ s }}" {% if s == season %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+
+    <!-- Leaders Grids -->
+    {% include "leaders/_grid.html" %}
+</div>
+{% endblock %}

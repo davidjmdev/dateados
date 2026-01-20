@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+{% from "components/nba_components.html" import stats_table_header, card_container %}
+
+{% block title %}Temporada {{ season }} - Dateados{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 p-6 flex items-center justify-between">
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Temporada {{ season }}</h1>
+        
+        <div class="flex items-center space-x-4">
+            <span class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Cambiar Temporada:</span>
+            <form method="get" class="flex items-center">
+                <select onchange="window.location.href='/seasons/' + this.value" class="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 text-sm rounded-md focus:ring-blue-500 focus:border-blue-500 block p-1.5 shadow-sm">
+                    {% for s in all_seasons %}
+                    <option value="{{ s }}" {% if s == season %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="border-b border-gray-200 dark:border-gray-700">
+        <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+            <button onclick="switchTab('regular')" id="tab-regular" class="border-blue-500 text-blue-600 dark:text-blue-400 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Temporada Regular
+            </button>
+            {% if bracket %}
+            <button onclick="switchTab('playoffs')" id="tab-playoffs" class="border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Playoffs
+            </button>
+            {% endif %}
+            {% if ist_bracket %}
+            <button onclick="switchTab('ist')" id="tab-ist" class="border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                NBA Cup
+            </button>
+            {% endif %}
+        </nav>
+    </div>
+
+    <!-- Regular Season Standings -->
+    <div id="content-regular" class="space-y-8">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Eastern Conference -->
+            {% call card_container(title="Conferencia Este", class="border-blue-100 dark:border-blue-900") %}
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-sm">
+                        {{ stats_table_header([
+                            {'label': '#', 'class': 'text-left w-12'},
+                            {'label': 'Equipo', 'class': 'text-left'},
+                            {'label': 'W', 'highlight': True},
+                            {'label': 'L'},
+                            {'label': 'PCT'}
+                        ]) }}
+                        <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                            {% for entry in east_standings %}
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition cursor-pointer" onclick="window.location='/teams/{{ entry.team.id }}?season={{ season }}'">
+                                <td class="px-6 py-4 text-gray-500 dark:text-gray-400 font-mono">{{ loop.index }}</td>
+                                <td class="px-6 py-4 font-medium text-gray-900 dark:text-gray-100">
+                                    <div class="flex items-center">
+                                        <img src="https://cdn.nba.com/logos/nba/{{ entry.team.id }}/primary/L/logo.svg" 
+                                             alt="" 
+                                             onerror="this.style.display='none'"
+                                             class="h-6 w-6 object-contain mr-3">
+                                        {{ entry.team.full_name }}
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 text-center text-gray-900 dark:text-gray-100 font-bold bg-gray-50/50 dark:bg-gray-700/50">{{ entry.wins }}</td>
+                                <td class="px-6 py-4 text-center text-gray-500 dark:text-gray-400">{{ entry.losses }}</td>
+                                <td class="px-6 py-4 text-center text-gray-900 dark:text-gray-100 font-mono">{{ "%.3f"|format(entry.pct) }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">No hay datos disponibles.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endcall %}
+
+            <!-- Western Conference -->
+            {% call card_container(title="Conferencia Oeste", class="border-red-100 dark:border-red-900") %}
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-sm">
+                        {{ stats_table_header([
+                            {'label': '#', 'class': 'text-left w-12'},
+                            {'label': 'Equipo', 'class': 'text-left'},
+                            {'label': 'W', 'highlight': True},
+                            {'label': 'L'},
+                            {'label': 'PCT'}
+                        ]) }}
+                        <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                            {% for entry in west_standings %}
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition cursor-pointer" onclick="window.location='/teams/{{ entry.team.id }}?season={{ season }}'">
+                                <td class="px-6 py-4 text-gray-500 dark:text-gray-400 font-mono">{{ loop.index }}</td>
+                                <td class="px-6 py-4 font-medium text-gray-900 dark:text-gray-100">
+                                    <div class="flex items-center">
+                                        <img src="https://cdn.nba.com/logos/nba/{{ entry.team.id }}/primary/L/logo.svg" 
+                                             alt="" 
+                                             onerror="this.style.display='none'"
+                                             class="h-6 w-6 object-contain mr-3">
+                                        {{ entry.team.full_name }}
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 text-center text-gray-900 dark:text-gray-100 font-bold bg-gray-50/50 dark:bg-gray-700/50">{{ entry.wins }}</td>
+                                <td class="px-6 py-4 text-center text-gray-500 dark:text-gray-400">{{ entry.losses }}</td>
+                                <td class="px-6 py-4 text-center text-gray-900 dark:text-gray-100 font-mono">{{ "%.3f"|format(entry.pct) }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">No hay datos disponibles.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endcall %}
+        </div>
+    </div>
+
+    <!-- Playoff Bracket Section -->
+    {% if bracket %}
+    <div id="content-playoffs" class="hidden space-y-6">
+        <div class="overflow-x-auto pb-8">
+            <div class="inline-flex min-w-full space-x-12 px-4 py-8">
+                {% for round in bracket %}
+                <div class="flex-shrink-0 w-64 flex flex-col">
+                    <h3 class="text-center font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 py-3 rounded-lg mb-8 shadow-sm">{{ round.name }}</h3>
+                    
+                    <div class="flex flex-col justify-around flex-grow space-y-12">
+                        {% for series in round.series %}
+                        <div class="relative">
+                            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden z-10 relative">
+                                <div class="divide-y divide-gray-100 dark:divide-gray-700">
+                                    <!-- Team 1 -->
+                                    <div class="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition {% if series.home_wins > series.away_wins and series.home_wins >= 4 %}bg-green-50 dark:bg-green-900/30{% endif %}" onclick="window.location='/teams/{{ series.home_team.id }}?season={{ season }}'">
+                                        <div class="flex items-center space-x-3 overflow-hidden group">
+                                            <img src="https://cdn.nba.com/logos/nba/{{ series.home_team.id }}/primary/L/logo.svg" class="h-6 w-6 object-contain" alt="">
+                                            <span class="text-sm font-bold text-gray-900 dark:text-gray-100 truncate">{{ series.home_team.abbreviation }}</span>
+                                        </div>
+                                        <span class="text-lg font-black text-gray-900 dark:text-gray-100">{{ series.home_wins }}</span>
+                                    </div>
+                                    <!-- Team 2 -->
+                                    <div class="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition {% if series.away_wins > series.home_wins and series.away_wins >= 4 %}bg-green-50 dark:bg-green-900/30{% endif %}" onclick="window.location='/teams/{{ series.away_team.id }}?season={{ season }}'">
+                                        <div class="flex items-center space-x-3 overflow-hidden group">
+                                            <img src="https://cdn.nba.com/logos/nba/{{ series.away_team.id }}/primary/L/logo.svg" class="h-6 w-6 object-contain" alt="">
+                                            <span class="text-sm font-bold text-gray-900 dark:text-gray-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400">{{ series.away_team.abbreviation }}</span>
+                                        </div>
+                                        <span class="text-lg font-black text-gray-900 dark:text-gray-100">{{ series.away_wins }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- IST Bracket Section -->
+    {% if ist_bracket %}
+    <div id="content-ist" class="hidden space-y-6">
+        <div class="overflow-x-auto pb-8">
+            <div class="inline-flex min-w-full space-x-12 px-4 py-8">
+                {% for round in ist_bracket %}
+                <div class="flex-shrink-0 w-64 flex flex-col">
+                    <h3 class="text-center font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 py-3 rounded-lg mb-8 shadow-sm">{{ round.name }}</h3>
+                    
+                    <div class="flex flex-col justify-around flex-grow space-y-12">
+                        {% for series in round.series %}
+                        <div class="relative">
+                            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden z-10 relative">
+                                <div class="divide-y divide-gray-100 dark:divide-gray-700">
+                                    <!-- Team 1 -->
+                                    <div class="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition {% if series.home_score > series.away_score %}bg-green-50 dark:bg-green-900/30{% endif %}" onclick="window.location='/teams/{{ series.home_team.id }}?season={{ season }}'">
+                                        <div class="flex items-center space-x-3 overflow-hidden group">
+                                            <img src="https://cdn.nba.com/logos/nba/{{ series.home_team.id }}/primary/L/logo.svg" class="h-6 w-6 object-contain" alt="">
+                                            <span class="text-sm font-bold text-gray-900 dark:text-gray-100 truncate">{{ series.home_team.abbreviation }}</span>
+                                        </div>
+                                        <span class="text-lg font-black text-gray-900 dark:text-gray-100">{{ series.home_score }}</span>
+                                    </div>
+                                    <!-- Team 2 -->
+                                    <div class="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition {% if series.away_score > series.home_score %}bg-green-50 dark:bg-green-900/30{% endif %}" onclick="window.location='/teams/{{ series.away_team.id }}?season={{ season }}'">
+                                        <div class="flex items-center space-x-3 overflow-hidden group">
+                                            <img src="https://cdn.nba.com/logos/nba/{{ series.away_team.id }}/primary/L/logo.svg" class="h-6 w-6 object-contain" alt="">
+                                            <span class="text-sm font-bold text-gray-900 dark:text-gray-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400">{{ series.away_team.abbreviation }}</span>
+                                        </div>
+                                        <span class="text-lg font-black text-gray-900 dark:text-gray-100">{{ series.away_score }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function switchTab(tab) {
+        const regTab = document.getElementById('tab-regular');
+        const poTab = document.getElementById('tab-playoffs');
+        const istTab = document.getElementById('tab-ist');
+        
+        const regContent = document.getElementById('content-regular');
+        const poContent = document.getElementById('content-playoffs');
+        const istContent = document.getElementById('content-ist');
+
+        const activeClasses = 'border-blue-500 text-blue-600 dark:text-blue-400 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm';
+        const inactiveClasses = 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm';
+
+        // Reset all tabs
+        if (regTab) regTab.className = inactiveClasses;
+        if (poTab) poTab.className = inactiveClasses;
+        if (istTab) istTab.className = inactiveClasses;
+        
+        if (regContent) regContent.classList.add('hidden');
+        if (poContent) poContent.classList.add('hidden');
+        if (istContent) istContent.classList.add('hidden');
+
+        // Set active tab
+        if (tab === 'regular') {
+            if (regTab) regTab.className = activeClasses;
+            if (regContent) regContent.classList.remove('hidden');
+        } else if (tab === 'playoffs') {
+            if (poTab) poTab.className = activeClasses;
+            if (poContent) poContent.classList.remove('hidden');
+        } else if (tab === 'ist') {
+            if (istTab) istTab.className = activeClasses;
+            if (istContent) istContent.classList.remove('hidden');
+        }
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,463 @@
+{% extends "base.html" %}
+{% from "components/nba_components.html" import stats_table_header, summary_row, card_container %}
+
+{% block title %}{{ player.full_name }} - Dateados{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    
+    <!-- Player Profile Card (Left Column) -->
+    <div class="lg:col-span-1 space-y-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+            <div class="bg-slate-900 h-32 relative">
+                <!-- Team Logo Background Pattern -->
+            </div>
+            <div class="px-6 pb-6 relative">
+                <div class="flex justify-center -mt-16 mb-4">
+                    <div class="h-32 w-32 rounded-full border-4 border-white dark:border-gray-800 bg-gray-200 dark:bg-gray-600 overflow-hidden shadow-md">
+                        <img src="https://cdn.nba.com/headshots/nba/latest/260x190/{{ player.id }}.png" 
+                             alt="{{ player.full_name }}" 
+                             onerror="this.onerror=null; this.src='https://via.placeholder.com/150?text={{ player.full_name[:1] }}'"
+                             class="h-full w-full object-cover">
+                    </div>
+                </div>
+                
+                <div class="text-center">
+                    <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ player.full_name }}</h1>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wide mt-1">
+                        {{ player.position }} 
+                        {% if dorsal_reciente %}
+                        | #{{ dorsal_reciente }}
+                        {% endif %}
+                    </p>
+                </div>
+                
+                <div class="mt-6 border-t border-gray-100 dark:border-gray-700 pt-6 space-y-3">
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500 dark:text-gray-400">Altura</span>
+                        <span class="font-medium text-gray-900 dark:text-gray-100">{{ player.height or 'N/A' }}</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500 dark:text-gray-400">Peso</span>
+                        <span class="font-medium text-gray-900 dark:text-gray-100">{% if player.weight %}{{ player.weight }} lbs{% else %}N/A{% endif %}</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500 dark:text-gray-400">País</span>
+                        <span class="font-medium text-gray-900 dark:text-gray-100">{{ player.country or 'N/A' }}</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500 dark:text-gray-400">Draft</span>
+                        <span class="font-medium text-gray-900 dark:text-gray-100">
+                            {% if player.draft_year %}
+                                {{ player.draft_year }} / R{{ player.draft_round }} / Pick {{ player.draft_number }}
+                            {% else %}
+                                Undrafted
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500 dark:text-gray-400">Escuela</span>
+                        <span class="font-medium text-gray-900 dark:text-gray-100 text-right truncate w-40">{{ player.school or 'N/A' }}</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500 dark:text-gray-400">Experiencia</span>
+                        <span class="font-medium text-gray-900 dark:text-gray-100">
+                            {{ player.experience_calculated }} 
+                            {% if player.experience_calculated == 1 %}temporada{% else %}temporadas{% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Quick Stats (Last Season) -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+            <h3 class="font-bold text-gray-900 dark:text-gray-100 mb-4">Última Temporada ({{ ultima_temporada or 'N/A' }})</h3>
+            <div class="grid grid-cols-3 gap-4 text-center">
+                <div>
+                    <div class="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                        {{ "%.1f"|format(promedios.pts) if promedios else '--' }}
+                    </div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400 uppercase">PPG</div>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                        {{ "%.1f"|format(promedios.reb) if promedios else '--' }}
+                    </div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400 uppercase">RPG</div>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                        {{ "%.1f"|format(promedios.ast) if promedios else '--' }}
+                    </div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400 uppercase">APG</div>
+                </div>
+            </div>
+            {% if promedios %}
+            <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 grid grid-cols-4 gap-2 text-center text-xs">
+                <div>
+                    <span class="text-gray-500 dark:text-gray-400">STL:</span>
+                    <span class="font-semibold text-gray-900 dark:text-gray-100">{{ "%.1f"|format(promedios.stl) }}</span>
+                </div>
+                <div>
+                    <span class="text-gray-500 dark:text-gray-400">BLK:</span>
+                    <span class="font-semibold text-gray-900 dark:text-gray-100">{{ "%.1f"|format(promedios.blk) }}</span>
+                </div>
+                <div>
+                    <span class="text-gray-500 dark:text-gray-400">TOV:</span>
+                    <span class="font-semibold text-gray-900 dark:text-gray-100">{{ "%.1f"|format(promedios.tov) }}</span>
+                </div>
+                <div>
+                    <span class="text-gray-500 dark:text-gray-400">PJ:</span>
+                    <span class="font-semibold text-gray-900 dark:text-gray-100">{{ promedios.games }}</span>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Teammates -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="font-bold text-gray-900 dark:text-gray-100">Compañeros</h3>
+                <a href="/players/{{ player.id }}/teammates" class="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium">Ver histórico</a>
+            </div>
+            <div class="space-y-3">
+                {% for teammate in current_teammates[:8] %}
+                <a href="/players/{{ teammate.id }}" class="flex items-center group">
+                    <div class="flex items-center space-x-3">
+                        <div class="h-8 w-8 rounded-full bg-gray-100 dark:bg-gray-700 flex-shrink-0 overflow-hidden">
+                            <img src="https://cdn.nba.com/headshots/nba/latest/260x190/{{ teammate.id }}.png" 
+                                 alt="{{ teammate.full_name }}"
+                                 onerror="this.onerror=null; this.src='https://via.placeholder.com/50?text={{ teammate.full_name[:1] }}'"
+                                 class="h-full w-full object-cover">
+                        </div>
+                        <span class="text-sm text-gray-700 dark:text-gray-300 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{{ teammate.full_name }}</span>
+                    </div>
+                </a>
+                {% else %}
+                <p class="text-xs text-gray-500 dark:text-gray-400 text-center py-2">No hay información de compañeros.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main Content (Right Column) -->
+    <div class="lg:col-span-2 space-y-6">
+        
+        <!-- Awards and Recognitions -->
+        {% if awards %}
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+            <h3 class="font-bold text-gray-900 dark:text-gray-100 mb-4">Palmarés y Premios</h3>
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {% for award in awards %}
+                <div class="relative group cursor-help p-3 rounded-xl border transition-all 
+                    {% if award.type in ['Champion', 'MVP', 'Finals MVP', 'NBA Cup'] %}
+                        bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800
+                    {% else %}
+                        bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50
+                    {% endif %}">
+                    <div class="flex flex-col items-center text-center">
+                        <div class="text-2xl font-black mb-1 
+                            {% if award.type in ['Champion', 'MVP', 'Finals MVP', 'NBA Cup'] %}
+                                text-amber-600 dark:text-amber-500
+                            {% else %}
+                                text-gray-900 dark:text-gray-100
+                            {% endif %}">
+                            {{ award.count }}x
+                        </div>
+                        <div class="text-[10px] font-bold uppercase tracking-wider 
+                            {% if award.type in ['Champion', 'MVP', 'Finals MVP', 'NBA Cup'] %}
+                                text-amber-800 dark:text-amber-400
+                            {% else %}
+                                text-gray-500 dark:text-gray-400
+                            {% endif %} leading-tight">
+                            {{ award.display_name }}
+                        </div>
+                    </div>
+                    
+                    <!-- Tooltip con los años -->
+                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-20 w-64 bg-gray-900/95 dark:bg-black/95 backdrop-blur-sm text-white text-[10px] rounded-xl p-3 shadow-2xl border border-gray-700">
+                        <div class="font-bold border-b border-gray-700 pb-2 mb-2 flex justify-between items-center">
+                            <span>{{ award.display_name }}</span>
+                            <span class="bg-gray-700 px-1.5 py-0.5 rounded text-[9px]">{{ award.count }}</span>
+                        </div>
+                        <div class="grid grid-cols-3 gap-1 max-h-40 overflow-y-auto pr-1 custom-scrollbar">
+                            {% for item in award.award_items %}
+                            <span class="text-gray-300">{{ item.season }}</span>
+                            {% endfor %}
+                        </div>
+                        <div class="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-gray-900/95 dark:border-t-black/95"></div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Career Highs -->
+        {% if career_highs %}
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+            <h3 class="font-bold text-gray-900 dark:text-gray-100 mb-4">Récords Personales</h3>
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                {% set highs = [
+                    ('pts', 'Puntos'), ('reb', 'Rebotes'), ('ast', 'Asistencias'),
+                    ('stl', 'Robos'), ('blk', 'Tapones'), ('fg3m', 'Triples'),
+                    ('fgm', 'FG Made'), ('ftm', 'FT Made'), ('min', 'Minutos'), ('plus_minus', 'Mejor +/-')
+                ] %}
+                {% for key, label in highs %}
+                    {% if career_highs[key] %}
+                    <a href="/games/{{ career_highs[key].game_id }}" class="block p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition group">
+                        <div class="text-2xl font-bold {% if key == 'plus_minus' %}text-green-600 dark:text-green-400{% else %}text-gray-900 dark:text-gray-100{% endif %} group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                            {% if key == 'min' %}{{ "%.0f"|format(career_highs[key].value) }}{% elif key == 'plus_minus' %}+{{ "%.0f"|format(career_highs[key].value) }}{% else %}{{ career_highs[key].value }}{% endif %}
+                        </div>
+                        <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ label }}</div>
+                        <div class="text-[10px] text-gray-400 dark:text-gray-500 mt-1 truncate">vs {{ career_highs[key].vs_team }}</div>
+                    </a>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Career Achievements -->
+        {% if career_highs and (career_highs.triple_doubles > 0 or career_highs.double_doubles > 0 or career_highs.games_40_pts > 0 or career_highs.games_50_pts > 0 or career_highs.games_60_pts > 0) %}
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+            <h3 class="font-bold text-gray-900 dark:text-gray-100 mb-4">Logros de Carrera</h3>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                {% set achievements = [
+                    ('triple_doubles', 'Triple-dobles', 'purple'),
+                    ('double_doubles', 'Doble-dobles', 'blue'),
+                    ('games_40_pts', 'Partidos 40+', 'orange'),
+                    ('games_50_pts', 'Partidos 50+', 'red'),
+                    ('games_60_pts', 'Partidos 60+', 'yellow')
+                ] %}
+                {% for key, label, color in achievements %}
+                    {% if career_highs[key] and career_highs[key] > 0 %}
+                    <div class="flex items-center space-x-2">
+                        <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-{{color}}-100 dark:bg-{{color}}-900/50 text-{{color}}-700 dark:text-{{color}}-300 font-bold text-xs">{{ career_highs[key] }}</span>
+                        <span class="text-gray-600 dark:text-gray-400">{{ label }}</span>
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Stats Section -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="font-bold text-gray-900 dark:text-gray-100">Estadísticas</h3>
+            </div>
+            
+            <!-- Tabs Navigation -->
+            <div class="border-b border-gray-200 dark:border-gray-700 overflow-x-auto custom-scrollbar">
+                <nav class="flex -mb-px min-w-max">
+                    <button onclick="switchStatsTab('last7')" id="tab-last7" class="px-4 py-3 border-b-2 text-sm font-medium whitespace-nowrap border-blue-500 text-blue-600 dark:text-blue-400">Últimos 7 días</button>
+                    <button onclick="switchStatsTab('last30')" id="tab-last30" class="px-4 py-3 border-b-2 text-sm font-medium whitespace-nowrap border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">Último mes</button>
+                    <button onclick="switchStatsTab('rs')" id="tab-rs" class="px-4 py-3 border-b-2 text-sm font-medium whitespace-nowrap border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">Temporada Regular</button>
+                    <button onclick="switchStatsTab('ist')" id="tab-ist" class="px-4 py-3 border-b-2 text-sm font-medium whitespace-nowrap border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">NBA Cup</button>
+                    <button onclick="switchStatsTab('po')" id="tab-po" class="px-4 py-3 border-b-2 text-sm font-medium whitespace-nowrap border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">Playoffs</button>
+                </nav>
+            </div>
+            
+                <!-- Tab Contents -->
+                <div class="p-0">
+                    <!-- Helper Macro for Games Table -->
+                    {% macro games_table(stats_data) %}
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full text-xs">
+                                {{ stats_table_header([
+                                    {'label': 'Fecha', 'class': 'text-left'},
+                                    {'label': 'VS', 'class': 'text-left'},
+                                    {'label': 'MIN'},
+                                    {'label': 'PTS', 'highlight': True},
+                                    {'label': 'REB'},
+                                    {'label': 'AST'},
+                                    {'label': 'STL'},
+                                    {'label': 'BLK'},
+                                    {'label': 'TOV'},
+                                    {'label': 'FG'},
+                                    {'label': '3PT'},
+                                    {'label': 'FT'},
+                                    {'label': '+/-'}
+                                ]) }}
+                                <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                                    {% for s in stats_data.games %}
+                                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer" onclick="window.location='/games/{{ s.game.id }}'">
+                                        <td class="px-3 py-2 font-mono text-gray-900 dark:text-gray-100">{{ s.game.date }}</td>
+                                        <td class="px-2 py-2">
+                                            <span class="text-gray-400">vs</span>
+                                            <span class="font-medium text-gray-900 dark:text-gray-100">
+                                                {% if s.team_id == s.game.home_team_id %}{{ s.game.away_team.abbreviation }}{% else %}{{ s.game.home_team.abbreviation }}{% endif %}
+                                            </span>
+                                        </td>
+                                        <td class="px-2 py-2 text-center text-gray-500 dark:text-gray-400">{{ s.minutes_formatted }}</td>
+                                        <td class="px-2 py-2 text-center font-bold text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-700">{{ s.pts }}</td>
+                                        <td class="px-2 py-2 text-center text-gray-900 dark:text-gray-100">{{ s.reb }}</td>
+                                        <td class="px-2 py-2 text-center text-gray-900 dark:text-gray-100">{{ s.ast }}</td>
+                                        <td class="px-2 py-2 text-center text-gray-500 dark:text-gray-400">{{ s.stl }}</td>
+                                        <td class="px-2 py-2 text-center text-gray-500 dark:text-gray-400">{{ s.blk }}</td>
+                                        <td class="px-2 py-2 text-center text-gray-500 dark:text-gray-400">{{ s.tov }}</td>
+                                        <td class="px-2 py-2 text-center text-gray-500 dark:text-gray-400">{{ s.fgm }}-{{ s.fga }}</td>
+                                        <td class="px-2 py-2 text-center text-gray-500 dark:text-gray-400">{{ s.fg3m }}-{{ s.fg3a }}</td>
+                                        <td class="px-2 py-2 text-center text-gray-500 dark:text-gray-400">{{ s.ftm }}-{{ s.fta }}</td>
+                                        <td class="px-2 py-2 text-center {% if s.plus_minus > 0 %}text-green-600 dark:text-green-400{% elif s.plus_minus < 0 %}text-red-600 dark:text-red-400{% else %}text-gray-500{% endif %}">
+                                            {{ "%+d"|format(s.plus_minus) if s.plus_minus is not none else '0' }}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                    {% if stats_data.averages %}
+                                        {{ summary_row('PROMEDIOS', [
+                                            {'value': "%.1f"|format(stats_data.averages.mpg)},
+                                            {'value': "%.1f"|format(stats_data.averages.ppg), 'highlight': True},
+                                            {'value': "%.1f"|format(stats_data.averages.rpg)},
+                                            {'value': "%.1f"|format(stats_data.averages.apg)},
+                                            {'value': "%.1f"|format(stats_data.averages.spg)},
+                                            {'value': "%.1f"|format(stats_data.averages.bpg)},
+                                            {'value': "%.1f"|format(stats_data.averages.topg)},
+                                            {'value': "%.1f"|format(stats_data.averages.fg_pct * 100) ~ '%'},
+                                            {'value': "%.1f"|format(stats_data.averages.fg3_pct * 100) ~ '%'},
+                                            {'value': "%.1f"|format(stats_data.averages.ft_pct * 100) ~ '%'},
+                                            {'value': "%+.1f"|format(stats_data.averages.plus_minus)}
+                                        ], colspan=2) }}
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% endmacro %}
+
+                    <!-- Helper Macro for Seasons Table -->
+                    {% macro seasons_table(seasons_list, totals) %}
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full text-xs">
+                                {{ stats_table_header([
+                                    {'label': 'Temp', 'class': 'text-left'},
+                                    {'label': 'TM', 'class': 'text-left'},
+                                    {'label': 'PJ'},
+                                    {'label': 'MIN'},
+                                    {'label': 'PTS', 'highlight': True},
+                                    {'label': 'REB'},
+                                    {'label': 'AST'},
+                                    {'label': 'STL'},
+                                    {'label': 'BLK'},
+                                    {'label': 'TOV'},
+                                    {'label': 'FG%'},
+                                    {'label': '3P%'},
+                                    {'label': 'FT%'},
+                                    {'label': '+/-'}
+                                ]) }}
+                                <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                                    {% for s in seasons_list %}
+                                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                        <td class="px-3 py-2 font-mono text-gray-900 dark:text-gray-100">{{ s.season }}</td>
+                                        <td class="px-2 py-2 text-gray-900 dark:text-gray-100 font-medium">{{ s.team_abbr }}</td>
+                                        <td class="px-2 py-2 text-center text-gray-900 dark:text-gray-100">{{ s.games }}</td>
+                                        <td class="px-2 py-2 text-center text-gray-500 dark:text-gray-400">{{ "%.1f"|format(s.mpg) }}</td>
+                                        <td class="px-2 py-2 text-center font-bold text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-700">{{ "%.1f"|format(s.ppg) }}</td>
+                                        <td class="px-2 py-2 text-center text-gray-900 dark:text-gray-100">{{ "%.1f"|format(s.rpg) }}</td>
+                                        <td class="px-2 py-2 text-center text-gray-900 dark:text-gray-100">{{ "%.1f"|format(s.apg) }}</td>
+                                        <td class="px-2 py-2 text-center text-gray-500 dark:text-gray-400">{{ "%.1f"|format(s.spg) }}</td>
+                                        <td class="px-2 py-2 text-center text-gray-500 dark:text-gray-400">{{ "%.1f"|format(s.bpg) }}</td>
+                                        <td class="px-2 py-2 text-center text-gray-500 dark:text-gray-400">{{ "%.1f"|format(s.topg) }}</td>
+                                        <td class="px-2 py-2 text-center text-gray-500 dark:text-gray-400">{{ "%.1f"|format(s.fg_pct * 100) }}</td>
+                                        <td class="px-2 py-2 text-center text-gray-500 dark:text-gray-400">{{ "%.1f"|format(s.fg3_pct * 100) }}</td>
+                                        <td class="px-2 py-2 text-center text-gray-500 dark:text-gray-400">{{ "%.1f"|format(s.ft_pct * 100) }}</td>
+                                        <td class="px-2 py-2 text-center {% if s.plus_minus > 0 %}text-green-600 dark:text-green-400{% elif s.plus_minus < 0 %}text-red-600 dark:text-red-400{% else %}text-gray-500 dark:text-gray-400{% endif %}">{{ "%+.1f"|format(s.plus_minus) }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                    {% if totals %}
+                                        {{ summary_row('CARRERA', [
+                                            {'value': totals.games},
+                                            {'value': "%.1f"|format(totals.mpg)},
+                                            {'value': "%.1f"|format(totals.ppg), 'highlight': True},
+                                            {'value': "%.1f"|format(totals.rpg)},
+                                            {'value': "%.1f"|format(totals.apg)},
+                                            {'value': "%.1f"|format(totals.spg)},
+                                            {'value': "%.1f"|format(totals.bpg)},
+                                            {'value': "%.1f"|format(totals.topg)},
+                                            {'value': "%.1f"|format(totals.fg_pct * 100)},
+                                            {'value': "%.1f"|format(totals.fg3_pct * 100)},
+                                            {'value': "%.1f"|format(totals.ft_pct * 100)},
+                                            {'value': "%+.1f"|format(totals.plus_minus)}
+                                        ], colspan=2) }}
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% endmacro %}
+
+                <div id="stats-last7" class="tab-content">
+                    {% if career_stats.last_7_days.games %}
+                        {{ games_table(career_stats.last_7_days) }}
+                    {% else %}
+                        <div class="p-8 text-center text-gray-500 dark:text-gray-400">No hay partidos registrados en los últimos 7 días.</div>
+                    {% endif %}
+                </div>
+                
+                <div id="stats-last30" class="tab-content hidden">
+                    {% if career_stats.last_month.games %}
+                        {{ games_table(career_stats.last_month) }}
+                    {% else %}
+                        <div class="p-8 text-center text-gray-500 dark:text-gray-400">No hay partidos registrados en el último mes.</div>
+                    {% endif %}
+                </div>
+
+                <div id="stats-rs" class="tab-content hidden">
+                    {% if career_stats.regular_season %}
+                        {{ seasons_table(career_stats.regular_season, career_stats.rs_totals) }}
+                    {% else %}
+                        <div class="p-8 text-center text-gray-500 dark:text-gray-400">No hay estadísticas de temporada regular disponibles.</div>
+                    {% endif %}
+                </div>
+
+                <div id="stats-ist" class="tab-content hidden">
+                    {% if career_stats.ist %}
+                        {{ seasons_table(career_stats.ist, career_stats.ist_totals) }}
+                    {% else %}
+                        <div class="p-8 text-center text-gray-500 dark:text-gray-400">No hay estadísticas de NBA Cup disponibles.</div>
+                    {% endif %}
+                </div>
+
+                <div id="stats-po" class="tab-content hidden">
+                    {% if career_stats.playoffs %}
+                        {{ seasons_table(career_stats.playoffs, career_stats.po_totals) }}
+                    {% else %}
+                        <div class="p-8 text-center text-gray-500 dark:text-gray-400">No hay estadísticas de playoffs disponibles.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function switchStatsTab(tabId) {
+        // Hide all contents
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        
+        // Show target content
+        const targetContent = document.getElementById('stats-' + tabId);
+        if (targetContent) targetContent.classList.remove('hidden');
+        
+        // Reset all buttons
+        const allTabIds = ['last7', 'last30', 'rs', 'ist', 'po'];
+        const activeClasses = ['border-blue-500', 'text-blue-600', 'dark:text-blue-400'];
+        const inactiveClasses = ['border-transparent', 'text-gray-500', 'dark:text-gray-400', 'hover:text-gray-700', 'dark:hover:text-gray-300'];
+        
+        allTabIds.forEach(id => {
+            const btn = document.getElementById('tab-' + id);
+            if (btn) {
+                btn.classList.remove(...activeClasses);
+                btn.classList.add(...inactiveClasses);
+                
+                if (id === tabId) {
+                    btn.classList.remove(...inactiveClasses);
+                    btn.classList.add(...activeClasses);
+                }
+            }
+        });
+    }
+</script>
+{% endblock %}

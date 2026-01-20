@@ -1,0 +1,73 @@
+{% from "components/nba_components.html" import badge, pagination %}
+
+<div id="games-table-container">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+        <div class="divide-y divide-gray-100 dark:divide-gray-700">
+            {% for game in games %}
+            <a href="/games/{{ game.id }}" class="block hover:bg-gray-50 dark:hover:bg-gray-700 transition duration-150 p-4">
+                <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+                    <!-- Date & Status -->
+                    <div class="flex flex-col items-center md:items-start w-full md:w-32">
+                        <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ game.date }}</span>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ game.season }}</span>
+                        <div class="mt-1">
+                            {% if game.status == 3 %}
+                                {{ badge('Final', 'default') }}
+                            {% elif game.status == 2 %}
+                                {{ badge('En Vivo', 'error', class='animate-pulse') }}
+                            {% else %}
+                                {{ badge('Programado', 'success') }}
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Matchup -->
+                    <div class="flex-1 flex items-center justify-center space-x-8 w-full">
+                        <!-- Away Team -->
+                        <div class="flex flex-col items-center w-24">
+                            <img src="https://cdn.nba.com/logos/nba/{{ game.away_team_id }}/primary/L/logo.svg" 
+                                 alt="" 
+                                 onerror="this.onerror=null; this.src='https://via.placeholder.com/48'"
+                                 class="h-12 w-12 object-contain mb-2">
+                            {% set away_s = game.away_score if game.away_score is not none else 0 %}
+                            {% set home_s = game.home_score if game.home_score is not none else 0 %}
+                            <span class="font-bold {% if away_s > home_s %}text-gray-900 dark:text-gray-100{% else %}text-gray-400 dark:text-gray-500{% endif %} text-xl">
+                                {{ game.away_score if game.away_score is not none else '-' }}
+                            </span>
+                        </div>
+                        
+                        <div class="text-sm font-medium text-gray-400 dark:text-gray-500">@</div>
+                        
+                        <!-- Home Team -->
+                        <div class="flex flex-col items-center w-24">
+                            <img src="https://cdn.nba.com/logos/nba/{{ game.home_team_id }}/primary/L/logo.svg" 
+                                 alt="" 
+                                 onerror="this.onerror=null; this.src='https://via.placeholder.com/48'"
+                                 class="h-12 w-12 object-contain mb-2">
+                            {% set away_s = game.away_score if game.away_score is not none else 0 %}
+                            {% set home_s = game.home_score if game.home_score is not none else 0 %}
+                            <span class="font-bold {% if home_s > away_s %}text-gray-900 dark:text-gray-100{% else %}text-gray-400 dark:text-gray-500{% endif %} text-xl">
+                                {{ game.home_score if game.home_score is not none else '-' }}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <!-- Arrow -->
+                    <div class="hidden md:block text-gray-400 dark:text-gray-500">
+                        <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                </div>
+            </a>
+            {% else %}
+            <div class="p-8 text-center text-gray-500 dark:text-gray-400">
+                No se encontraron partidos que coincidan con los filtros.
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <!-- Pagination -->
+    {{ pagination(page, total_pages, '/games', {'season': season, 'start_date': start_date, 'end_date': end_date}) }}
+</div>
