@@ -20,11 +20,12 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from db import init_db
+from db.connection import get_session
 from ingestion.api_client import NBAApiClient
 from ingestion.checkpoints import CheckpointManager
 from ingestion.core import FullIngestion, IncrementalIngestion
 from ingestion.restart import restart_process
-from ingestion.utils import FatalIngestionError, normalize_season
+from ingestion.utils import FatalIngestionError, normalize_season, ProgressReporter
 from ingestion.config import LOG_FORMAT, LOG_DATE_FORMAT
 from db.utils.logging_handler import SQLAlchemyHandler
 from db.models import LogEntry
@@ -67,28 +68,26 @@ def clear_logs():
 
 def run_full_ingestion(start_season: str, end_season: str, resume: bool):
     """Ejecuta ingesta histórica completa paralela."""
-    # Limpiar logs si no es una reanudación (opcional, pero según user: "cuando se lance un proceso nuevo")
+    # Limpiar logs si no es una reanudación
     if not resume:
         clear_logs()
         
     logger.info("=" * 80)
     logger.info("INICIANDO INGESTA COMPLETA HISTÓRICA (PARALELA)")
     logger.info("=" * 80)
-    logger.info(f"Temporadas: {start_season} a {end_season}")
-    if resume:
-        logger.info("Modo: REANUDACIÓN")
-    logger.info("=" * 80)
     
     api_client = NBAApiClient()
-    checkpoint_mgr = CheckpointManager() # Manager global para verificar estados generales
+    checkpoint_mgr = CheckpointManager()
+    reporter = ProgressReporter("full_ingestion", session_factory=get_session)
     
     try:
-        # Cargar checkpoint global si aplica para filtrar temporadas
+        # Cargar checkpoint global si aplica
         checkpoint = checkpoint_mgr.load_checkpoint() if resume else None
         
         # Ejecutar ingesta
         full_ingestion = FullIngestion(api_client, checkpoint_mgr)
-        full_ingestion.run(start_season, end_season, checkpoint)
+        full_ingestion.run(start_season, end_season, checkpoint, reporter=reporter)
+        reporter.complete("Ingesta completa finalizada con éxito")
         
     except FatalIngestionError as e:
         logger.error("=" * 80)
@@ -112,10 +111,11 @@ def run_incremental_ingestion(limit_seasons: int):
     logger.info("=" * 80)
     
     api_client = NBAApiClient()
+    reporter = ProgressReporter("incremental_ingestion", session_factory=get_session)
     
     try:
         incremental = IncrementalIngestion(api_client)
-        incremental.run(limit_seasons)
+        incremental.run(limit_seasons, reporter=reporter)
         
     except FatalIngestionError as e:
         logger.error("=" * 80)

@@ -50,25 +50,34 @@ def season_worker_func(season: str, resume_game_id: Optional[str] = None):
             resume_game_id = ckpt.get('game_id')
     
     session = get_session()
+    reporter = None
     try:
+        from ingestion.utils import ProgressReporter
+        reporter = ProgressReporter(f"Season-{season}", session_factory=get_session)
+        reporter.update(0, f"Iniciando temporada {season}...")
+        
         # 1. Ingestar partidos
         season_ingest = SeasonIngestion(api_client, ckpt_mgr)
-        season_ingest.ingest_season(session, season, resume_game_id)
+        season_ingest.ingest_season(session, season, resume_game_id, reporter=reporter)
         
         # 2. Generar tablas derivadas inmediatamente
         derived = DerivedTablesGenerator()
         
-        logger.info(f"Generando tablas derivadas para {season}...")
+        msg = f"Generando tablas derivadas para {season}..."
+        logger.info(msg)
+        reporter.update(90, msg)
         derived.regenerate_for_seasons(session, [season])
         
         # 3. Limpiar checkpoint al finalizar
         ckpt_mgr.clear()
+        reporter.complete(f"Temporada {season} completada")
         logger.info(f"✅ Temporada {season} completada")
         
     except FatalIngestionError:
         raise
     except Exception as e:
         logger.error(f"Error en worker de temporada {season}: {e}")
+        if reporter: reporter.fail(str(e))
         raise
     finally:
         session.close()
@@ -81,6 +90,7 @@ def season_batch_worker_func(seasons: List[str]):
 def awards_worker_func(batch_id: int, player_ids: List[int], resume_player_id: Optional[int] = None):
     """Función de worker para procesar un lote de premios."""
     api_client = NBAApiClient()
+    task_name = f"Awards-Batch-{batch_id}"
     ckpt_mgr = CheckpointManager(checkpoint_key=f"awards_batch_{batch_id}")
     
     if not resume_player_id:
@@ -89,16 +99,29 @@ def awards_worker_func(batch_id: int, player_ids: List[int], resume_player_id: O
             resume_player_id = ckpt.get('entity_id')
 
     session = get_session()
+    reporter = None
     try:
+        from ingestion.utils import ProgressReporter
+        reporter = ProgressReporter(task_name, session_factory=get_session)
+        
         awards_sync = PlayerAwardsSync(api_client)
+        # Adaptar sync_batch para que informe al reporter si fuera necesario, 
+        # o simplemente reportar aquí el inicio/fin del batch.
+        # Por simplicidad ahora, reportamos progreso general del batch:
+        reporter.update(0, f"Procesando {len(player_ids)} jugadores...")
+        
         awards_sync.sync_batch(session, player_ids, ckpt_mgr, resume_player_id=resume_player_id)
         
         ckpt_mgr.clear()
-        logger.info(f"✅ Batch de premios {batch_id} completado")
+        reporter.complete(f"Lote de {len(player_ids)} jugadores finalizado")
     except FatalIngestionError:
         raise
     except Exception as e:
         logger.error(f"Error en worker de premios batch {batch_id}: {e}")
+        try:
+            if reporter:
+                reporter.fail(str(e))
+        except: pass
         raise
     finally:
         session.close()
@@ -106,6 +129,7 @@ def awards_worker_func(batch_id: int, player_ids: List[int], resume_player_id: O
 def player_info_worker_func(batch_id: int, player_ids: List[int], resume_player_id: Optional[int] = None):
     """Función de worker para procesar un lote de biografías de jugadores."""
     api_client = NBAApiClient()
+    task_name = f"Bio-Batch-{batch_id}"
     ckpt_mgr = CheckpointManager(checkpoint_key=f"player_info_batch_{batch_id}")
     
     if not resume_player_id:
@@ -114,16 +138,25 @@ def player_info_worker_func(batch_id: int, player_ids: List[int], resume_player_
             resume_player_id = ckpt.get('entity_id')
 
     session = get_session()
+    reporter = None
     try:
+        from ingestion.utils import ProgressReporter
+        reporter = ProgressReporter(task_name, session_factory=get_session)
+        reporter.update(0, f"Procesando biografías para {len(player_ids)} jugadores...")
+        
         player_sync = PlayerSync()
         player_sync.sync_detailed_batch(session, player_ids, api_client, ckpt_mgr)
         
         ckpt_mgr.clear()
-        logger.info(f"✅ Batch de biografías {batch_id} completado")
+        reporter.complete(f"Biografías finalizadas")
     except FatalIngestionError:
         raise
     except Exception as e:
         logger.error(f"Error en worker de biografías batch {batch_id}: {e}")
+        try:
+            if reporter:
+                reporter.fail(str(e))
+        except: pass
         raise
     finally:
         session.close()
@@ -279,8 +312,9 @@ class GameIngestion:
                 v2 = self.api.fetch_game_boxscore_v2_fallback(game_id)
                 if v2:
                     for _, r in v2.get_data_frames()[0].iterrows():
-                        if r.get('PLAYER_ID') and r.get('PLAYER_NAME'):
-                            name_fallback[int(r['PLAYER_ID'])] = r['PLAYER_NAME']
+                        p_id = safe_int(r.get('PLAYER_ID'), default=-1)
+                        if p_id > 0 and r.get('PLAYER_NAME'):
+                            name_fallback[p_id] = r['PLAYER_NAME']
             
             # Procesar estadísticas
             self._process_player_stats(session, game_id, dfs[0], game_exists, name_fallback)
@@ -340,8 +374,13 @@ class GameIngestion:
         """Procesa estadísticas de jugadores."""
         for _, row in df.iterrows():
             try:
-                player_id = int(self._get_col(row, 'personId', 'PLAYER_ID', 'playerId'))
-                team_id = int(self._get_col(row, 'teamId', 'TEAM_ID'))
+                # Usar safe_int para evitar el crash con NaN en datos históricos
+                player_id = safe_int(self._get_col(row, 'personId', 'PLAYER_ID', 'playerId'), default=-1)
+                team_id = safe_int(self._get_col(row, 'teamId', 'TEAM_ID'), default=-1)
+                
+                # Si no hay IDs válidos, es probable que sea una fila de totales o datos corruptos
+                if player_id <= 0 or team_id <= 0:
+                    continue
                 
                 from ingestion.utils import is_valid_team_id
                 if not is_valid_team_id(team_id, session=session):
@@ -437,7 +476,8 @@ class SeasonIngestion:
         self, 
         session: Session, 
         season: str, 
-        resume_from_game_id: Optional[str] = None
+        resume_from_game_id: Optional[str] = None,
+        reporter: Optional[Any] = None
     ) -> Dict[str, int]:
         """Ingiere todos los partidos de una temporada.
         
@@ -497,7 +537,11 @@ class SeasonIngestion:
                 # Checkpoint cada 20 partidos
                 if i > 0 and i % 20 == 0:
                     self.checkpoints.save_games_checkpoint(season, gid, {'total': len(games_data)})
-                    logger.info(f"Progreso {season}: {i}/{len(games_data)}")
+                    msg = f"Progreso {season}: {i}/{len(games_data)}"
+                    logger.info(msg)
+                    if reporter:
+                        progress = int((i / len(games_data)) * 90)
+                        reporter.update(progress, msg)
                 
                 # Asegurar que la fecha en DB sea la fecha local correcta
                 # Esto corrige fechas que se pudieron guardar como UTC (día siguiente)
@@ -536,18 +580,22 @@ class FullIngestion:
         self.team_sync = TeamSync()
         self.player_sync = PlayerSync()
     
-    def run(self, start_season: str, end_season: str, checkpoint: Optional[Dict] = None):
+    def run(self, start_season: str, end_season: str, checkpoint: Optional[Dict] = None, reporter: Optional[ProgressReporter] = None):
         """Ejecuta ingesta completa histórica paralela.
         
         Args:
             start_season: Temporada de inicio
             end_season: Temporada final
             checkpoint: Checkpoint global (opcional)
+            reporter: Reporter de progreso (opcional)
         """
+        if reporter: reporter.update(0, "Iniciando ingesta completa...")
         session = get_session()
         try:
             # 1. Sincronizar entidades base
+            if reporter: reporter.update(2, "Sincronizando equipos...")
             self.team_sync.sync_all(session)
+            if reporter: reporter.update(5, "Sincronizando jugadores...")
             new_players_count = self.player_sync.sync_all(session)
             
             # 2. Obtener lista de temporadas
@@ -571,8 +619,11 @@ class FullIngestion:
 
             if not seasons:
                 logger.info("No hay temporadas pendientes de procesar.")
+                if reporter: reporter.update(100, "No hay temporadas pendientes")
             else:
-                logger.info(f"Iniciando ingesta paralela para {len(seasons)} temporadas: {seasons}")
+                msg = f"Iniciando ingesta paralela para {len(seasons)} temporadas"
+                logger.info(f"{msg}: {seasons}")
+                if reporter: reporter.update(10, msg)
             
             # 3. Lanzar procesos para cada dos temporadas
             processes = {}

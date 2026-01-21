@@ -87,6 +87,16 @@ def run_parallel_task(
     for i, chunk in enumerate(chunks):
         batch_id = i + 1
         name = worker_name_func(batch_id)
+        
+        # Registrar worker en system_status si es posible
+        try:
+            from ingestion.utils import ProgressReporter
+            from db.connection import get_session
+            reporter = ProgressReporter(name, session_factory=get_session)
+            reporter.update(0, "Iniciando worker...", status="running")
+        except:
+            pass
+
         p = multiprocessing.Process(
             target=run_worker_with_stagger,
             args=(task_func, f"{prefix}_{batch_id}", batch_id, chunk),
