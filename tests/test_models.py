@@ -8,7 +8,7 @@ import pytest
 from datetime import date, timedelta
 from db.models import (
     Team, Player, Game, PlayerGameStats, 
-    TeamGameStats, PlayerTeamSeason, AnomalyScore
+    TeamGameStats, PlayerTeamSeason
 )
 
 
@@ -282,70 +282,6 @@ class TestPlayer:
         old_year = datetime.now().year - 5
         player = Player(id=1, full_name="Test Player", to_year=old_year)
         assert player.is_active is False
-
-
-class TestAnomalyScore:
-    """Tests para el modelo AnomalyScore."""
-    
-    def test_is_any_anomaly_none(self):
-        """No hay anomalia si todos los flags son False."""
-        score = AnomalyScore(
-            game_id="0022300001",
-            player_id=1,
-            reconstruction_loss=0.5,
-            is_anomaly=False,
-            player_season_is_anomaly=False,
-            streak_is_anomaly=False
-        )
-        assert score.is_any_anomaly is False
-    
-    def test_is_any_anomaly_league(self):
-        """Anomalia de liga detectada."""
-        score = AnomalyScore(
-            game_id="0022300001",
-            player_id=1,
-            reconstruction_loss=5.0,
-            is_anomaly=True,
-            player_season_is_anomaly=False,
-            streak_is_anomaly=False
-        )
-        assert score.is_any_anomaly is True
-    
-    def test_is_any_anomaly_player_season(self):
-        """Anomalia de temporada del jugador detectada."""
-        score = AnomalyScore(
-            game_id="0022300001",
-            player_id=1,
-            reconstruction_loss=0.5,
-            is_anomaly=False,
-            player_season_is_anomaly=True,
-            streak_is_anomaly=False
-        )
-        assert score.is_any_anomaly is True
-    
-    def test_is_any_anomaly_streak(self):
-        """Anomalia de racha detectada."""
-        score = AnomalyScore(
-            game_id="0022300001",
-            player_id=1,
-            reconstruction_loss=0.5,
-            is_anomaly=False,
-            player_season_is_anomaly=False,
-            streak_is_anomaly=True
-        )
-        assert score.is_any_anomaly is True
-    
-    def test_is_any_anomaly_multiple(self):
-        """Multiples anomalias detectadas."""
-        score = AnomalyScore(
-            game_id="0022300001",
-            player_id=1,
-            reconstruction_loss=5.0,
-            is_anomaly=True,
-            player_season_is_anomaly=True,
-            streak_is_anomaly=True
-        )
-        assert score.is_any_anomaly is True
 
 
 class TestTeam:

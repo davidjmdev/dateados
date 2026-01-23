@@ -29,6 +29,13 @@ def fetch_with_retry(api_call_func, max_retries=MAX_RETRIES, timeout=API_TIMEOUT
             return result
         except Exception as e:
             error_msg = str(e)
+            
+            # Si el error indica que no hay datos (resultSet vacío), no reintentamos.
+            # Esto ahorra mucho tiempo en jugadores antiguos sin biografía.
+            if 'resultSet' in error_msg:
+                logger.warning(f"Datos no disponibles en {error_context}: {error_msg}")
+                return None
+
             logger.warning(
                 f"Error en {error_context} (intento {attempt + 1}/{max_retries}): {error_msg}. "
                 f"Esperando {timeout}s para reintentar..."
@@ -216,56 +223,163 @@ def safe_int_or_none(value: Any) -> Optional[int]:
 
 
 class ProgressReporter:
-    """Maneja el reporte de progreso a la base de datos y logs."""
+    """Maneja el reporte de progreso con métricas temporales y actualizaciones inteligentes."""
     
     def __init__(self, task_name: str, session_factory=None):
         self.task_name = task_name
         self.session_factory = session_factory
         self.current_progress = 0
         self.last_message = ""
+        self.start_time = time.time()
+        self.last_update_time = self.start_time
+        self.last_log_time = self.start_time  # Para controlar frecuencia de logs
+        self.items_processed = 0
+        self.total_items = 0
+    
+    def set_total(self, total: int):
+        """Define el total de items a procesar para cálculos automáticos."""
+        self.total_items = total
+    
+    def increment(self, message: str = "", delta: int = 1):
+        """Incrementa el contador de items procesados y actualiza progreso automáticamente.
+        
+        Args:
+            message: Mensaje descriptivo del progreso (opcional)
+            delta: Número de items procesados (default: 1)
+        """
+        self.items_processed += delta
+        
+        # Calcular progreso automáticamente si tenemos total
+        if self.total_items > 0:
+            progress = min(100, int((self.items_processed / self.total_items) * 100))
+        else:
+            progress = self.current_progress
+        
+        # Calcular métricas temporales
+        elapsed = time.time() - self.start_time
+        metrics_msg = self._build_metrics_message(message, elapsed)
+        
+        self.update(progress, metrics_msg)
+    
+    def _build_metrics_message(self, base_message: str, elapsed: float) -> str:
+        """Construye un mensaje con métricas de rendimiento."""
+        msg_parts = []
+        
+        # Mensaje base
+        if base_message:
+            msg_parts.append(base_message)
+        elif self.total_items > 0:
+            msg_parts.append(f"{self.items_processed}/{self.total_items}")
+        
+        # Agregar velocidad si tiene sentido
+        if self.items_processed > 0 and elapsed > 1:
+            rate = self.items_processed / elapsed
+            if rate >= 1:
+                msg_parts.append(f"{rate:.1f} items/s")
+            elif rate >= 0.1:
+                msg_parts.append(f"{rate:.2f} items/s")
+        
+        # Agregar ETA si es útil (solo si tenemos total y han pasado al menos 10 segundos)
+        if self.total_items > 0 and self.items_processed > 0 and elapsed > 10:
+            remaining = self.total_items - self.items_processed
+            if remaining > 0:
+                rate = self.items_processed / elapsed
+                if rate > 0:
+                    eta_seconds = remaining / rate
+                    if eta_seconds > 60:
+                        eta_min = int(eta_seconds / 60)
+                        msg_parts.append(f"ETA: ~{eta_min}min")
+                    elif eta_seconds > 0:
+                        msg_parts.append(f"ETA: ~{int(eta_seconds)}s")
+        
+        return " | ".join(msg_parts) if msg_parts else "En progreso..."
 
     def update(self, progress: int, message: str, status: str = "running"):
-        """Actualiza el estado en la base de datos."""
+        """Actualiza el estado en la base de datos.
+        
+        Args:
+            progress: Porcentaje de progreso (0-100)
+            message: Mensaje descriptivo
+            status: Estado de la tarea (running, completed, failed)
+        """
+        from ingestion.log_config import PROGRESS_LOG_EVERY_N_SECONDS
+        
         self.current_progress = progress
         self.last_message = message
-        logger.info(f"[{self.task_name}] {progress}% - {message}")
         
+        # Control inteligente de logging: solo loguear si han pasado >N segundos
+        # Esto reduce drasticamente el spam en log_entries
+        now = time.time()
+        should_log = (now - self.last_log_time) >= PROGRESS_LOG_EVERY_N_SECONDS
+        
+        if should_log or progress >= 100 or status != "running":
+            elapsed = int(now - self.start_time)
+            if elapsed > 60:
+                elapsed_str = f"{elapsed//60}m{elapsed%60}s"
+            else:
+                elapsed_str = f"{elapsed}s"
+            
+            logger.info(f"[{self.task_name}] {progress}% - {message} (Tiempo: {elapsed_str})")
+            self.last_log_time = now
+        
+        # Actualizar SystemStatus SIEMPRE (esto es lo que ve el monitor en tiempo real)
         if self.session_factory:
             from db.models import SystemStatus
-            from sqlalchemy.sql import func
             session = self.session_factory()
             try:
                 task = session.query(SystemStatus).filter_by(task_name=self.task_name).first()
+                is_new = False
                 if not task:
                     task = SystemStatus(task_name=self.task_name)
                     session.add(task)
+                    is_new = True
                 
                 task.status = status
                 task.progress = progress
                 task.message = message
-                task.last_run = datetime.now()
+                
+                # CRÍTICO: Solo establecer last_run al crear la tarea (marca el inicio)
+                # No actualizar en cada update o perdemos el tiempo de inicio
+                if is_new or task.last_run is None:
+                    task.last_run = datetime.now()
+                
                 session.commit()
-            except Exception as e:
-                logger.error(f"Error actualizando SystemStatus: {e}")
+                self.last_update_time = now
+            except Exception:
+                # No loguear error de SystemStatus para no crear ruido
                 session.rollback()
             finally:
                 session.close()
 
     def complete(self, message: str = "Tarea completada con éxito"):
-        self.update(100, message, status="completed")
+        """Marca la tarea como completada."""
+        elapsed = int(time.time() - self.start_time)
+        if elapsed > 60:
+            elapsed_str = f" en {elapsed//60}m{elapsed%60}s"
+        else:
+            elapsed_str = f" en {elapsed}s"
+        self.update(100, message + elapsed_str, status="completed")
 
     def fail(self, message: str):
+        """Marca la tarea como fallida."""
         self.update(self.current_progress, f"ERROR: {message}", status="failed")
 
 
-def get_max_workers(default_count: int) -> int:
-    """Determina el número máximo de workers basado en el entorno."""
+def get_max_workers(requested_count: Optional[int] = None) -> int:
+    """Determina el número máximo de workers basado en el entorno.
+    
+    Si se proporciona requested_count, se usa ese valor como deseo,
+    pero siempre respetando los límites del entorno.
+    """
     import os
-    # En Render, solemos tener la variable RENDER=true
-    if os.getenv("RENDER") == "true" or os.getenv("WEB_MODE") == "true":
-        from ingestion.config import WEB_AWARDS_WORKERS
-        return WEB_AWARDS_WORKERS
-    return default_count
+    from ingestion.config import MAX_WORKERS_LOCAL, MAX_WORKERS_CLOUD
+    
+    # En Render o modo Cloud, siempre forzamos el límite de bajo consumo
+    if os.getenv("RENDER") == "true" or os.getenv("WEB_MODE") == "true" or os.getenv("CLOUD_MODE") == "true":
+        return MAX_WORKERS_CLOUD
+        
+    # En local, usamos el valor solicitado o el máximo local por defecto
+    return requested_count if requested_count is not None else MAX_WORKERS_LOCAL
 
 
 def clear_memory():

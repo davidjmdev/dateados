@@ -117,6 +117,16 @@ class TeamSync:
             session.rollback()
 
 
+def safe_str(value: Any, default: Optional[str] = None) -> Optional[str]:
+    """Convierte a string de forma segura manejando None y NaN."""
+    if value is None:
+        return default
+    s = str(value).strip()
+    if s.lower() in ['none', 'nan', 'null', '']:
+        return default
+    return s
+
+
 class PlayerSync:
     """Sincroniza jugadores desde lista estática."""
     
@@ -147,7 +157,17 @@ class PlayerSync:
             if existing:
                 # Siempre actualizamos el estado de actividad
                 existing.is_active = player_info['is_active']
-                if update_existing:
+                
+                # REPARACIÓN AUTOMÁTICA: Si el nombre actual parece una inicial (ej: "S. Gilgeous-Alexander")
+                # lo actualizamos con el nombre completo de la lista estática.
+                current_name = existing.full_name or ""
+                is_initial_format = (
+                    len(current_name) > 2 and 
+                    current_name[1] == '.' and 
+                    current_name[2] == ' '
+                )
+                
+                if update_existing or is_initial_format:
                     existing.full_name = player_info['full_name']
             elif player_info['is_active']:
                 # Solo añadimos jugadores nuevos si están activos.
@@ -171,7 +191,8 @@ class PlayerSync:
         player_ids: List[int], 
         api: NBAApiClient,
         checkpoint_mgr: CheckpointManager,
-        show_progress: bool = True
+        show_progress: bool = True,
+        reporter: Optional[Any] = None
     ):
         """Sincroniza información detallada (biografía) para un lote de jugadores.
         
@@ -181,18 +202,26 @@ class PlayerSync:
             api: Cliente de la API
             checkpoint_mgr: Manager de checkpoints
             show_progress: Si True, registra progreso en log
+            reporter: Opcional, reporter de progreso
         """
         total = len(player_ids)
         if show_progress:
             logger.info(f"Sincronizando biografía detallada para {total} jugadores...")
+        
+        # NUEVO: Configurar total para métricas automáticas
+        if reporter:
+            reporter.set_total(total)
+            reporter.update(0, f"Iniciando {total} jugadores...")
             
         for i, player_id in enumerate(player_ids):
             try:
                 # Checkpoint cada 20 jugadores
                 if i % 20 == 0 and i > 0:
                     checkpoint_mgr.save_sync_checkpoint('player_info', player_id)
-                    if show_progress:
-                        logger.info(f"Progreso biografía [{checkpoint_mgr.checkpoint_key}]: {i}/{total} (ID: {player_id})")
+                
+                # NUEVO: Actualizar progreso DESPUÉS DE CADA JUGADOR
+                if reporter:
+                    reporter.increment(f"ID {player_id}")
 
                 # Obtener información detallada (fatal=True para relanzar si hay bloqueo)
                 info_obj = api.fetch_player_info(player_id, fatal=True)
@@ -209,15 +238,15 @@ class PlayerSync:
                 if player:
                     # Mapeo de campos
                     # Actualizar nombre completo (importante para búsqueda)
-                    player.full_name = str(row.get('DISPLAY_FIRST_LAST', player.full_name))
+                    player.full_name = safe_str(row.get('DISPLAY_FIRST_LAST'), player.full_name)
                     
-                    player.birthdate = parse_date(str(row.get('BIRTHDATE', '')))
-                    player.height = str(row.get('HEIGHT', ''))
+                    player.birthdate = parse_date(row.get('BIRTHDATE'))
+                    player.height = safe_str(row.get('HEIGHT'))
                     player.weight = safe_int_or_none(row.get('WEIGHT'))
-                    player.school = str(row.get('SCHOOL', ''))
-                    player.country = str(row.get('COUNTRY', ''))
-                    player.jersey = str(row.get('JERSEY', ''))
-                    player.position = str(row.get('POSITION', ''))
+                    player.school = safe_str(row.get('SCHOOL'))
+                    player.country = safe_str(row.get('COUNTRY'))
+                    player.jersey = safe_str(row.get('JERSEY'))
+                    player.position = safe_str(row.get('POSITION'))
                     
                     # Draft info
                     player.draft_year = safe_int_or_none(row.get('DRAFT_YEAR'))
@@ -229,19 +258,21 @@ class PlayerSync:
                     player.to_year = safe_int_or_none(row.get('TO_YEAR'))
                     player.season_exp = safe_int_or_none(row.get('SEASON_EXP'))
                     
+                    # Marcar como sincronizado
+                    player.bio_synced = True
+                    
                 session.commit()
                 time.sleep(API_DELAY)
                 
             except FatalIngestionError as e:
                 if 'resultSet' in str(e):
                     # Error de datos faltantes en la API para este jugador específico.
-                    # Lo marcamos como procesado (poniendo un valor centinela en height) 
-                    # para no intentar sincronizarlo de nuevo en cada pasada.
+                    # Lo marcamos como procesado para no intentar sincronizarlo de nuevo.
                     player = session.query(Player).filter(Player.id == player_id).first()
                     if player:
-                        player.height = "N/A"
+                        player.bio_synced = True
                     session.commit()
-                    logger.warning(f"Jugador {player_id} no tiene biografía en la API. Marcado como N/A.")
+                    logger.warning(f"Jugador {player_id} no tiene biografía en la API. Marcado como sincronizado.")
                     continue
                 raise
             except Exception as e:
@@ -256,6 +287,16 @@ class PlayerSync:
 
 class PlayerAwardsSync:
     """Sincroniza premios de jugadores."""
+    
+    # Premios que no queremos importar por ser irrelevantes o duplicados
+    AWARD_BLACKLIST = [
+        'Sporting News',
+        'IBM Award',
+        'Olympic Appearance',
+        'NBA Sportsmanship',
+        'J. Walter Kennedy Citizenship',
+        'NBA Comeback Player of the Year'
+    ]
     
     # Mapeo de nombres de premios a categorías simplificadas
     AWARD_MAP = {
@@ -293,7 +334,8 @@ class PlayerAwardsSync:
         checkpoint_mgr: CheckpointManager,
         checkpoint_context: Optional[Dict[str, Any]] = None,
         resume_player_id: Optional[int] = None,
-        show_progress: bool = True
+        show_progress: bool = True,
+        reporter: Optional[Any] = None
     ):
         """Sincroniza premios para un batch de jugadores.
         
@@ -304,6 +346,7 @@ class PlayerAwardsSync:
             checkpoint_context: Contexto adicional para el checkpoint
             resume_player_id: ID del jugador desde donde reanudar
             show_progress: Si True, registra progreso en log
+            reporter: Opcional, reporter de progreso
             
         Raises:
             FatalIngestionError: Si hay errores persistentes de API
@@ -317,13 +360,20 @@ class PlayerAwardsSync:
         if show_progress:
             logger.info(f"Sincronizando premios para {total} jugadores...")
         
+        # NUEVO: Configurar total en el reporter para métricas automáticas
+        if reporter:
+            reporter.set_total(total)
+            reporter.update(0, f"Iniciando {total} jugadores...")
+        
         for i, player_id in enumerate(player_ids):
             try:
                 # Checkpoint cada 10 jugadores (más frecuente para evitar bucles en caso de error)
                 if i % 10 == 0 and i > 0:
                     checkpoint_mgr.save_sync_checkpoint('awards', player_id, checkpoint_context)
-                    if show_progress:
-                        logger.info(f"Progreso premios [{checkpoint_mgr.checkpoint_key}]: {i}/{total} (ID: {player_id})")
+                
+                # NUEVO: Actualizar progreso DESPUÉS DE CADA JUGADOR (no solo cada 10)
+                if reporter:
+                    reporter.increment(f"ID {player_id}")
                 
                 # Obtener premios desde API (fatal=True)
                 player_awards = self.api.fetch_player_awards(player_id, fatal=True)
@@ -378,19 +428,21 @@ class PlayerAwardsSync:
         for _, row in df.iterrows():
             description = str(row.get('DESCRIPTION', '')).strip()
             season = str(row.get('SEASON', '')).strip()
+            
+            # 1. Filtrar premios en la lista negra
+            if any(blacklisted in description for blacklisted in self.AWARD_BLACKLIST):
+                continue
+                
             all_nba_team = str(row.get('ALL_NBA_TEAM_NUMBER', '')).strip()
             
-            # Construir nombre completo
+            # 2. Construir nombre completo de forma robusta
             full_award_name = description
-            if all_nba_team and all_nba_team != 'None':
+            if all_nba_team and all_nba_team.isdigit() and all_nba_team in ['1', '2', '3']:
                 suffix = 'st' if all_nba_team == '1' else ('nd' if all_nba_team == '2' else 'rd')
                 full_award_name = f"{description} {all_nba_team}{suffix} Team"
             
-            # Determinar tipo simplificado
-            if 'Sporting News' in description:
-                award_type = 'Other'
-            else:
-                award_type = self._classify_award(description, sorted_keys)
+            # 3. Determinar tipo simplificado
+            award_type = self._classify_award(description, sorted_keys)
             
             # Guardar en BD
             try:

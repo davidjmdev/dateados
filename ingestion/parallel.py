@@ -17,13 +17,18 @@ logger = logging.getLogger(__name__)
 
 def setup_worker_logging(worker_name: str):
     """Configura el logging para un worker en la base de datos."""
+    from ingestion.log_config import WORKER_LOG_LEVEL
+    
     # Limpiar handlers existentes
     root = logging.getLogger()
     for handler in root.handlers[:]:
         root.removeHandler(handler)
+    
+    # Configurar nivel dinámico según entorno
+    log_level = getattr(logging, WORKER_LOG_LEVEL, logging.INFO)
         
     logging.basicConfig(
-        level=logging.INFO,
+        level=log_level,
         format=LOG_FORMAT,
         datefmt=LOG_DATE_FORMAT,
         handlers=[
@@ -32,28 +37,38 @@ def setup_worker_logging(worker_name: str):
         ]
     )
     
-    # Silenciar otros loggers ruidosos si es necesario
+    # Silenciar otros loggers ruidosos
     logging.getLogger('urllib3').setLevel(logging.WARNING)
     logging.getLogger('nba_api').setLevel(logging.WARNING)
 
 def run_worker_with_stagger(worker_func: Callable, name: str, *args, **kwargs):
     """Ejecuta una función de worker con un retraso inicial aleatorio."""
+    import signal
+    # Ignorar Ctrl+C en los procesos hijos, el padre se encargará de matarlos
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
     setup_worker_logging(name)
     worker_logger = logging.getLogger(__name__)
     
     # Jitter inicial desde configuración
     delay = random.uniform(WORKER_STAGGER_MIN, WORKER_STAGGER_MAX)
-    worker_logger.info(f"Worker {name} iniciando con delay de {delay:.2f}s...")
+    # CAMBIO: Usar DEBUG para el delay (reduce spam en logs)
+    worker_logger.debug(f"Worker {name} delay: {delay:.2f}s")
     time.sleep(delay)
+    
+    # Log de inicio conciso
+    worker_logger.info(f"✓ Worker {name} activo")
     
     try:
         worker_func(*args, **kwargs)
+        # Log de finalización exitosa
+        worker_logger.info(f"✓ Worker {name} completado")
         sys.exit(0)
     except FatalIngestionError as e:
-        worker_logger.error(f"🔴 ERROR FATAL en worker {name}: {e}")
+        worker_logger.error(f"ERROR FATAL en {name}: {e}")
         sys.exit(42) # Código especial para FatalIngestionError
     except Exception as e:
-        worker_logger.error(f"❌ Error inesperado en worker {name}: {e}", exc_info=True)
+        worker_logger.error(f"Error en {name}: {e}", exc_info=True)
         sys.exit(1)
 
 def run_parallel_task(
@@ -74,7 +89,8 @@ def run_parallel_task(
     if num_workers <= 1:
         logger.info(f"Ejecutando tarea {prefix} de forma secuencial (1 worker)...")
         try:
-            task_func(1, items)
+            name = worker_name_func(1)
+            task_func(1, items, task_name=name, checkpoint_prefix=prefix)
             return
         except Exception as e:
             logger.error(f"Error en tarea secuencial {prefix}: {e}")
@@ -93,13 +109,13 @@ def run_parallel_task(
             from ingestion.utils import ProgressReporter
             from db.connection import get_session
             reporter = ProgressReporter(name, session_factory=get_session)
-            reporter.update(0, "Iniciando worker...", status="running")
+            reporter.update(0, "Inicializando...", status="running")
         except:
             pass
 
         p = multiprocessing.Process(
             target=run_worker_with_stagger,
-            args=(task_func, f"{prefix}_{batch_id}", batch_id, chunk),
+            args=(task_func, f"{prefix}_{batch_id}", batch_id, chunk), kwargs={"task_name": name, "checkpoint_prefix": prefix},
             name=name
         )
         p.start()
@@ -121,7 +137,7 @@ def run_parallel_task(
                     bid = int(bid_str)
                     new_p = multiprocessing.Process(
                         target=run_worker_with_stagger,
-                        args=(task_func, f"{prefix}_{bid}", bid, chunks[bid-1]),
+                        args=(task_func, f"{prefix}_{bid}", bid, chunks[bid-1]), kwargs={"task_name": p.name, "checkpoint_prefix": prefix},
                         name=p.name
                     )
                     new_p.start()

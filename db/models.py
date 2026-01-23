@@ -94,6 +94,8 @@ class Player(Base):
     # Control de sincronización
     awards_synced = Column(Boolean, default=False, nullable=False, 
                           comment='True si ya se ha sincronizado el palmarés del jugador')
+    bio_synced = Column(Boolean, default=False, nullable=False,
+                        comment='True si ya se ha intentado sincronizar la biografía del jugador')
     
     # Auditoría
     created_at = Column(DateTime, default=utc_now, nullable=False)
@@ -101,7 +103,6 @@ class Player(Base):
     
     # Relaciones
     game_stats = relationship('PlayerGameStats', back_populates='player')
-    anomaly_scores = relationship('AnomalyScore', back_populates='player')
     team_seasons = relationship('PlayerTeamSeason', back_populates='player')
     
     # Índices y constraints
@@ -168,7 +169,6 @@ class Game(Base):
     home_team = relationship('Team', foreign_keys=[home_team_id], back_populates='home_games')
     away_team = relationship('Team', foreign_keys=[away_team_id], back_populates='away_games')
     player_stats = relationship('PlayerGameStats', back_populates='game')
-    anomaly_scores = relationship('AnomalyScore', back_populates='game')
     team_game_stats = relationship('TeamGameStats', back_populates='game')
     
     # Índices compuestos y constraints
@@ -303,107 +303,6 @@ class PlayerGameStats(Base):
         seconds = total_seconds % 60
         return f"{minutes}:{seconds:02d}"
 
-
-class AnomalyScore(Base):
-    """Modelo para persistir los hallazgos de anomalías detectadas.
-    
-    Guarda tres tipos de anomalías:
-    1. Anomalías de Liga: reconstruction_loss comparando con toda la liga
-    2. Anomalías de Jugador: Z-scores comparando con la media del jugador
-    3. Rachas Históricas: Secuencias consecutivas de partidos excepcionales
-    """
-    __tablename__ = 'ml_anomaly_scores'
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    game_id = Column(String(15), ForeignKey('games.id'), index=True, nullable=False)
-    player_id = Column(Integer, ForeignKey('players.id'), index=True, nullable=False)
-    
-    # Métricas de Liga (ML)
-    reconstruction_loss = Column(
-        Float,
-        nullable=False,
-        comment='Magnitud de la anomalía (MSE entre input y output reconstruido)'
-    )
-    feature_contributions = Column(
-        JSON,
-        nullable=True,
-        comment='Diccionario JSON con la contribución de cada feature al error de reconstrucción'
-    )
-    is_anomaly = Column(
-        Boolean,
-        default=False,
-        nullable=False,
-        comment='True si el loss supera el umbral configurado (percentil 99 por defecto)'
-    )
-    
-    # Métricas de Jugador
-    player_season_avg_deviation = Column(
-        Float,
-        nullable=True,
-        comment='Desviación Z-score promedio del partido vs media del jugador en la temporada'
-    )
-    player_season_z_scores = Column(
-        JSON,
-        nullable=True,
-        comment='Diccionario JSON con Z-scores por feature comparando con la media del jugador'
-    )
-    player_season_is_anomaly = Column(
-        Boolean,
-        default=False,
-        nullable=False,
-        comment='True si alguna feature tiene Z-score > umbral (default: 3.0)'
-    )
-    player_season_anomaly_features = Column(
-        JSON,
-        nullable=True,
-        comment='Lista de features que superan el umbral de Z-score vs media del jugador'
-    )
-    
-    # Métricas de Rachas
-    active_streaks = Column(
-        JSON,
-        nullable=True,
-        comment='Diccionario con rachas activas en este partido (ej: {"points_20+": 5, "triple_doubles": 2})'
-    )
-    streak_anomalies = Column(
-        JSON,
-        nullable=True,
-        comment='Diccionario con rachas que superan umbrales históricos'
-    )
-    streak_is_anomaly = Column(
-        Boolean,
-        default=False,
-        nullable=False,
-        comment='True si alguna racha es históricamente anómala'
-    )
-    
-    # Auditoría
-    created_at = Column(DateTime, default=utc_now, nullable=False)
-    
-    # Relaciones
-    game = relationship('Game', back_populates='anomaly_scores')
-    player = relationship('Player', back_populates='anomaly_scores')
-    
-    # Constraints e índices
-    __table_args__ = (
-        # Un jugador solo puede tener una entrada de anomalía por partido
-        UniqueConstraint('game_id', 'player_id', name='uq_anomaly_game_player'),
-        
-        # Check constraint para reconstruction_loss
-        CheckConstraint('reconstruction_loss >= 0', name='check_loss'),
-        
-        # Índices compuestos para consultas comunes
-        Index('idx_anomaly_player_game', 'player_id', 'game_id'),
-        Index('idx_anomaly_flags', 'is_anomaly', 'player_season_is_anomaly', 'streak_is_anomaly'),
-    )
-    
-    def __repr__(self):
-        return f"<AnomalyScore(game_id='{self.game_id}', player_id={self.player_id}, is_anomaly={self.is_anomaly})>"
-    
-    @property
-    def is_any_anomaly(self):
-        """Retorna True si alguna de las tres métricas detecta anomalía."""
-        return self.is_anomaly or self.player_season_is_anomaly or self.streak_is_anomaly
 
 
 class PlayerTeamSeason(Base):

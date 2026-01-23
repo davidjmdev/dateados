@@ -20,3 +20,8 @@ python-multipart
 
 # Testing
 pytest
+
+# ML / Outliers Detection
+--extra-index-url https://download.pytorch.org/whl/rocm7.1
+torch
+joblib

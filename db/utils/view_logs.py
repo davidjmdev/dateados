@@ -106,9 +106,25 @@ def monitor_mode(interval=2):
                         name = t.task_name[:20]
                         status = t.status.upper()[:10]
                         p_bar = draw_progress_bar(t.progress, width=12)
-                        rem_width = max(5, cols - 20 - 10 - 17 - 5)
+                        
+                        # NUEVO: Calcular tiempo activo usando last_run (marca el inicio de la tarea)
+                        if t.last_run:
+                            elapsed = (datetime.now() - t.last_run.replace(tzinfo=None)).total_seconds()
+                            if elapsed > 3600:  # Más de 1 hora
+                                elapsed_str = f"{int(elapsed//3600)}h{int((elapsed%3600)//60)}m"
+                            elif elapsed > 60:
+                                elapsed_str = f"{int(elapsed//60)}m{int(elapsed%60)}s"
+                            else:
+                                elapsed_str = f"{int(elapsed)}s"
+                        else:
+                            elapsed_str = "?"
+                        
+                        # Calcular espacio disponible para el mensaje
+                        rem_width = max(5, cols - 20 - 10 - 17 - 8)
                         msg = (t.message or "")[:rem_width]
-                        print(f"  {Colors.CYAN}{name:<20}{Colors.ENDC} {color}{status:<10}{Colors.ENDC} {p_bar} {msg}")
+                        
+                        # NUEVO: Mostrar tiempo transcurrido
+                        print(f"  {Colors.CYAN}{name:<20}{Colors.ENDC} {color}{status:<10}{Colors.ENDC} {p_bar} {Colors.LINE}{elapsed_str:>6}{Colors.ENDC} {msg}")
                         lines_printed += 1
                 
                 # 3. Dibujar Logs

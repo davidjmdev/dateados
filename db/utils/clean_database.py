@@ -8,15 +8,16 @@ import sys
 from pathlib import Path
 
 # Agregar el directorio raíz al PYTHONPATH
-project_root = Path(__file__).parent.parent
+project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 import logging
 from db import get_session, get_engine
 from db.models import (
-    Game, PlayerGameStats, PlayerTeamSeason, TeamGameStats, AnomalyScore, PlayerAward
+    Game, PlayerGameStats, PlayerTeamSeason, TeamGameStats, PlayerAward
 )
+from outliers.models import LeagueOutlier, PlayerOutlier, StreakRecord
 
 logging.basicConfig(
     level=logging.INFO,
@@ -45,44 +46,56 @@ def clean_database():
         counts_before['player_team_seasons'] = session.query(PlayerTeamSeason).count()
         counts_before['team_game_stats'] = session.query(TeamGameStats).count()
         counts_before['player_awards'] = session.query(PlayerAward).count()
-        counts_before['anomaly_scores'] = session.query(AnomalyScore).count()
+        counts_before['outliers_league'] = session.query(LeagueOutlier).count()
+        counts_before['outliers_player'] = session.query(PlayerOutlier).count()
+        counts_before['outliers_streaks'] = session.query(StreakRecord).count()
         
         logger.info("\nRegistros antes de limpiar:")
         for table, count in counts_before.items():
             logger.info(f"  {table}: {count}")
         
         # Confirmar
-        logger.info("\n⚠️  ADVERTENCIA: Se eliminarán TODOS los datos de ingesta")
-        logger.info("   Esto incluye: partidos, estadísticas, jerseys, tablas derivadas, premios")
-        logger.info("   Las tablas teams y players NO se eliminarán")
+        logger.info("\n  ADVERTENCIA: Se eliminaran TODOS los datos de ingesta")
+        logger.info("   Esto incluye: partidos, estadisticas, tablas derivadas, premios, outliers")
+        logger.info("   Las tablas teams y players NO se eliminaran")
         
         # Eliminar en orden (respetando foreign keys)
-        logger.info("\n1. Eliminando estadísticas de anomalías...")
-        deleted = session.query(AnomalyScore).delete()
+        logger.info("\n1. Eliminando outliers de liga...")
+        deleted = session.query(LeagueOutlier).delete()
         session.commit()
         logger.info(f"   Eliminados {deleted} registros")
         
-        logger.info("2. Eliminando premios de jugadores...")
+        logger.info("2. Eliminando outliers de jugador...")
+        deleted = session.query(PlayerOutlier).delete()
+        session.commit()
+        logger.info(f"   Eliminados {deleted} registros")
+        
+        logger.info("3. Eliminando rachas...")
+        deleted = session.query(StreakRecord).delete()
+        session.commit()
+        logger.info(f"   Eliminados {deleted} registros")
+        
+        logger.info("4. Eliminando premios de jugadores...")
         deleted = session.query(PlayerAward).delete()
         session.commit()
         logger.info(f"   Eliminados {deleted} registros")
         
-        logger.info("3. Eliminando estadísticas de equipos por partido...")
+        logger.info("5. Eliminando estadisticas de equipos por partido...")
         deleted = session.query(TeamGameStats).delete()
         session.commit()
         logger.info(f"   Eliminados {deleted} registros")
         
-        logger.info("4. Eliminando relaciones jugador-equipo-temporada...")
+        logger.info("6. Eliminando relaciones jugador-equipo-temporada...")
         deleted = session.query(PlayerTeamSeason).delete()
         session.commit()
         logger.info(f"   Eliminados {deleted} registros")
         
-        logger.info("5. Eliminando estadísticas de jugadores por partido...")
+        logger.info("7. Eliminando estadisticas de jugadores por partido...")
         deleted = session.query(PlayerGameStats).delete()
         session.commit()
         logger.info(f"   Eliminados {deleted} registros")
         
-        logger.info("6. Eliminando partidos...")
+        logger.info("8. Eliminando partidos...")
         deleted = session.query(Game).delete()
         session.commit()
         logger.info(f"   Eliminados {deleted} registros")
@@ -95,20 +108,22 @@ def clean_database():
         counts_after['player_team_seasons'] = session.query(PlayerTeamSeason).count()
         counts_after['team_game_stats'] = session.query(TeamGameStats).count()
         counts_after['player_awards'] = session.query(PlayerAward).count()
-        counts_after['anomaly_scores'] = session.query(AnomalyScore).count()
+        counts_after['outliers_league'] = session.query(LeagueOutlier).count()
+        counts_after['outliers_player'] = session.query(PlayerOutlier).count()
+        counts_after['outliers_streaks'] = session.query(StreakRecord).count()
         
         all_clean = all(count == 0 for count in counts_after.values())
         
-        logger.info("\nRegistros después de limpiar:")
+        logger.info("\nRegistros despues de limpiar:")
         for table, count in counts_after.items():
-            status = "✓" if count == 0 else "✗"
+            status = "OK" if count == 0 else "FAIL"
             logger.info(f"  {status} {table}: {count}")
         
         logger.info("\n" + "=" * 80)
         if all_clean:
-            logger.info("✓ BASE DE DATOS LIMPIADA CORRECTAMENTE")
+            logger.info("OK BASE DE DATOS LIMPIADA CORRECTAMENTE")
         else:
-            logger.warning("⚠ Algunas tablas aún tienen registros")
+            logger.warning("WARN Algunas tablas aun tienen registros")
         logger.info("=" * 80)
         
     except Exception as e:

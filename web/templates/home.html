@@ -89,13 +89,15 @@
         
         <!-- Quick Links / Features -->
         {% call card_container(title="Explorar Base de Datos") %}
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-4">
                 {% set links = [
                     ('/players', 'Jugadores', 'Perfiles y stats detalladas', 'blue'),
                     ('/teams', 'Equipos', 'Rosters y récords históricos', 'red'),
                     ('/leaders', 'Líderes', 'Top estadístico por campaña', 'orange'),
                     ('/seasons', 'Temporadas', 'Explora cada año de historia', 'green'),
                     ('/games', 'Partidos', 'Box scores y resultados', 'purple'),
+                    ('/streaks', 'Rachas', 'Rastreo de hitos consecutivos', 'pink'),
+                    ('/outliers', 'Outliers', 'IA detectando actuaciones raras', 'indigo'),
                     ('/pencil', 'Alto el lápiz', 'Juego de retos y adivinanzas', 'amber')
                 ] %}
                 {% for url, title, desc, color in links %}

@@ -35,15 +35,15 @@
                 <div class="mt-6 border-t border-gray-100 dark:border-gray-700 pt-6 space-y-3">
                     <div class="flex justify-between text-sm">
                         <span class="text-gray-500 dark:text-gray-400">Altura</span>
-                        <span class="font-medium text-gray-900 dark:text-gray-100">{{ player.height or 'N/A' }}</span>
+                        <span class="font-medium text-gray-900 dark:text-gray-100">{{ player.height or '-' }}</span>
                     </div>
                     <div class="flex justify-between text-sm">
                         <span class="text-gray-500 dark:text-gray-400">Peso</span>
-                        <span class="font-medium text-gray-900 dark:text-gray-100">{% if player.weight %}{{ player.weight }} lbs{% else %}N/A{% endif %}</span>
+                        <span class="font-medium text-gray-900 dark:text-gray-100">{% if player.weight %}{{ player.weight }} lbs{% else %}-{% endif %}</span>
                     </div>
                     <div class="flex justify-between text-sm">
                         <span class="text-gray-500 dark:text-gray-400">País</span>
-                        <span class="font-medium text-gray-900 dark:text-gray-100">{{ player.country or 'N/A' }}</span>
+                        <span class="font-medium text-gray-900 dark:text-gray-100">{{ player.country or '-' }}</span>
                     </div>
                     <div class="flex justify-between text-sm">
                         <span class="text-gray-500 dark:text-gray-400">Draft</span>
@@ -57,7 +57,7 @@
                     </div>
                     <div class="flex justify-between text-sm">
                         <span class="text-gray-500 dark:text-gray-400">Escuela</span>
-                        <span class="font-medium text-gray-900 dark:text-gray-100 text-right truncate w-40">{{ player.school or 'N/A' }}</span>
+                        <span class="font-medium text-gray-900 dark:text-gray-100 text-right truncate w-40">{{ player.school or '-' }}</span>
                     </div>
                     <div class="flex justify-between text-sm">
                         <span class="text-gray-500 dark:text-gray-400">Experiencia</span>
@@ -72,7 +72,7 @@
         
         <!-- Quick Stats (Last Season) -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-            <h3 class="font-bold text-gray-900 dark:text-gray-100 mb-4">Última Temporada ({{ ultima_temporada or 'N/A' }})</h3>
+            <h3 class="font-bold text-gray-900 dark:text-gray-100 mb-4">Última Temporada ({{ ultima_temporada or '-' }})</h3>
             <div class="grid grid-cols-3 gap-4 text-center">
                 <div>
                     <div class="text-2xl font-bold text-gray-900 dark:text-gray-100">

@@ -21,7 +21,7 @@ if str(project_root) not in sys.path:
 from db.connection import get_session
 from db.models import (
     Team, Player, Game, PlayerGameStats, TeamGameStats,
-    PlayerTeamSeason, AnomalyScore, PlayerAward
+    PlayerTeamSeason, PlayerAward
 )
 
 
@@ -139,7 +139,6 @@ def get_database_stats(session: Optional[Session] = None) -> Dict[str, int]:
             'team_game_stats': session.query(TeamGameStats).count(),
             'player_team_seasons': session.query(PlayerTeamSeason).count(),
             'player_awards': session.query(PlayerAward).count(),
-            'ml_anomaly_scores': session.query(AnomalyScore).count(),
         }
     finally:
         if own_session: 

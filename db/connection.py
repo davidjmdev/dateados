@@ -64,5 +64,10 @@ def init_db():
     que todas las tablas existan en la base de datos.
     """
     from db.models import Base
+    # Import outliers models to register them with Base.metadata
+    try:
+        from outliers.models import LeagueOutlier, PlayerOutlier, PlayerTrendOutlier, StreakRecord, StreakAllTimeRecord
+    except ImportError:
+        pass  # outliers module may not be available
     engine = get_engine()
     Base.metadata.create_all(engine)

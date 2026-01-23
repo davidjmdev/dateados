@@ -80,7 +80,7 @@ class PencilGameLogic:
     @staticmethod
     def is_non_mvp_award_winner(session: Session, player_id: int) -> bool:
         """Verifica si el jugador ganó un premio individual que NO sea el MVP de temporada."""
-        valid_awards = ['Finals MVP', 'DPOY', 'ROY', '6MOY', 'MIP', 'NBA Cup MVP', 'All-NBA', 'All-Defensive', 'All-Rookie', 'POM', 'POW', 'ROM']
+        valid_awards = ['Finals MVP', 'DPOY', 'ROY', '6MOY', 'MIP', 'NBA Cup MVP', 'All-NBA', 'All-Defensive', 'All-Rookie']
         return session.query(PlayerAward).filter(
             PlayerAward.player_id == player_id,
             PlayerAward.award_type != 'MVP',
@@ -202,7 +202,7 @@ class PencilGameLogic:
         elif category == 'lottery':
             query = query.filter(Player.draft_number <= 14)
         elif category == 'non_mvp':
-            valid_awards = ['Finals MVP', 'DPOY', 'ROY', '6MOY', 'MIP', 'NBA Cup MVP', 'All-NBA', 'All-Defensive', 'All-Rookie', 'POM', 'POW', 'ROM']
+            valid_awards = ['Finals MVP', 'DPOY', 'ROY', '6MOY', 'MIP', 'NBA Cup MVP', 'All-NBA', 'All-Defensive', 'All-Rookie']
             query = query.filter(exists().where(and_(
                 PlayerAward.player_id == Player.id, 
                 PlayerAward.award_type != 'MVP', 

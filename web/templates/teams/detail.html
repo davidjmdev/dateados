@@ -79,7 +79,7 @@
                                 </td>
                                 <td class="px-2 py-3 text-center text-gray-500 dark:text-gray-400 font-medium">{{ player_season.player.position or '-' }}</td>
                                 <td class="px-2 py-3 text-center text-gray-500 dark:text-gray-400">{{ player_season.player.height or '-' }}</td>
-                                <td class="px-2 py-3 text-center text-gray-500 dark:text-gray-400">{{ player_season.player.weight or '-' }} lbs</td>
+                                <td class="px-2 py-3 text-center text-gray-500 dark:text-gray-400">{% if player_season.player.weight %}{{ player_season.player.weight }} lbs{% else %}-{% endif %}</td>
                                 <td class="px-2 py-3 text-center text-gray-500 dark:text-gray-400">
                                     {{ player_season.player.experience }} 
                                     {% if player_season.player.experience == 1 %}temp.{% else %}temps.{% endif %}

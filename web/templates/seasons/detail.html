@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "components/nba_components.html" import stats_table_header, card_container %}
+{% from "components/nba_components.html" import stats_table_header, card_container, bracket_series_card %}
 
 {% block title %}Temporada {{ season }} - Dateados{% endblock %}
 
@@ -122,37 +122,16 @@
 
     <!-- Playoff Bracket Section -->
     {% if bracket %}
-    <div id="content-playoffs" class="hidden space-y-6">
-        <div class="overflow-x-auto pb-8">
-            <div class="inline-flex min-w-full space-x-12 px-4 py-8">
+    <div id="content-playoffs" class="hidden">
+        <div class="overflow-x-auto pb-12 pt-4">
+            <div class="inline-flex min-w-full px-4 items-stretch">
                 {% for round in bracket %}
-                <div class="flex-shrink-0 w-64 flex flex-col">
-                    <h3 class="text-center font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 py-3 rounded-lg mb-8 shadow-sm">{{ round.name }}</h3>
+                <div class="flex-shrink-0 w-64 flex flex-col mx-4">
+                    <h3 class="text-center font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 py-3 rounded-lg mb-4 shadow-sm">{{ round.name }}</h3>
                     
-                    <div class="flex flex-col justify-around flex-grow space-y-12">
+                    <div class="flex flex-col justify-around flex-grow">
                         {% for series in round.series %}
-                        <div class="relative">
-                            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden z-10 relative">
-                                <div class="divide-y divide-gray-100 dark:divide-gray-700">
-                                    <!-- Team 1 -->
-                                    <div class="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition {% if series.home_wins > series.away_wins and series.home_wins >= 4 %}bg-green-50 dark:bg-green-900/30{% endif %}" onclick="window.location='/teams/{{ series.home_team.id }}?season={{ season }}'">
-                                        <div class="flex items-center space-x-3 overflow-hidden group">
-                                            <img src="https://cdn.nba.com/logos/nba/{{ series.home_team.id }}/primary/L/logo.svg" class="h-6 w-6 object-contain" alt="">
-                                            <span class="text-sm font-bold text-gray-900 dark:text-gray-100 truncate">{{ series.home_team.abbreviation }}</span>
-                                        </div>
-                                        <span class="text-lg font-black text-gray-900 dark:text-gray-100">{{ series.home_wins }}</span>
-                                    </div>
-                                    <!-- Team 2 -->
-                                    <div class="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition {% if series.away_wins > series.home_wins and series.away_wins >= 4 %}bg-green-50 dark:bg-green-900/30{% endif %}" onclick="window.location='/teams/{{ series.away_team.id }}?season={{ season }}'">
-                                        <div class="flex items-center space-x-3 overflow-hidden group">
-                                            <img src="https://cdn.nba.com/logos/nba/{{ series.away_team.id }}/primary/L/logo.svg" class="h-6 w-6 object-contain" alt="">
-                                            <span class="text-sm font-bold text-gray-900 dark:text-gray-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400">{{ series.away_team.abbreviation }}</span>
-                                        </div>
-                                        <span class="text-lg font-black text-gray-900 dark:text-gray-100">{{ series.away_wins }}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                            {{ bracket_series_card(series, season, is_ist=False) }}
                         {% endfor %}
                     </div>
                 </div>
@@ -164,37 +143,16 @@
 
     <!-- IST Bracket Section -->
     {% if ist_bracket %}
-    <div id="content-ist" class="hidden space-y-6">
-        <div class="overflow-x-auto pb-8">
-            <div class="inline-flex min-w-full space-x-12 px-4 py-8">
+    <div id="content-ist" class="hidden">
+        <div class="overflow-x-auto pb-12 pt-4">
+            <div class="inline-flex min-w-full px-4 items-stretch">
                 {% for round in ist_bracket %}
-                <div class="flex-shrink-0 w-64 flex flex-col">
-                    <h3 class="text-center font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 py-3 rounded-lg mb-8 shadow-sm">{{ round.name }}</h3>
+                <div class="flex-shrink-0 w-64 flex flex-col mx-4">
+                    <h3 class="text-center font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 py-3 rounded-lg mb-4 shadow-sm">{{ round.name }}</h3>
                     
-                    <div class="flex flex-col justify-around flex-grow space-y-12">
+                    <div class="flex flex-col justify-around flex-grow">
                         {% for series in round.series %}
-                        <div class="relative">
-                            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden z-10 relative">
-                                <div class="divide-y divide-gray-100 dark:divide-gray-700">
-                                    <!-- Team 1 -->
-                                    <div class="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition {% if series.home_score > series.away_score %}bg-green-50 dark:bg-green-900/30{% endif %}" onclick="window.location='/teams/{{ series.home_team.id }}?season={{ season }}'">
-                                        <div class="flex items-center space-x-3 overflow-hidden group">
-                                            <img src="https://cdn.nba.com/logos/nba/{{ series.home_team.id }}/primary/L/logo.svg" class="h-6 w-6 object-contain" alt="">
-                                            <span class="text-sm font-bold text-gray-900 dark:text-gray-100 truncate">{{ series.home_team.abbreviation }}</span>
-                                        </div>
-                                        <span class="text-lg font-black text-gray-900 dark:text-gray-100">{{ series.home_score }}</span>
-                                    </div>
-                                    <!-- Team 2 -->
-                                    <div class="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition {% if series.away_score > series.home_score %}bg-green-50 dark:bg-green-900/30{% endif %}" onclick="window.location='/teams/{{ series.away_team.id }}?season={{ season }}'">
-                                        <div class="flex items-center space-x-3 overflow-hidden group">
-                                            <img src="https://cdn.nba.com/logos/nba/{{ series.away_team.id }}/primary/L/logo.svg" class="h-6 w-6 object-contain" alt="">
-                                            <span class="text-sm font-bold text-gray-900 dark:text-gray-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400">{{ series.away_team.abbreviation }}</span>
-                                        </div>
-                                        <span class="text-lg font-black text-gray-900 dark:text-gray-100">{{ series.away_score }}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                            {{ bracket_series_card(series, season, is_ist=True) }}
                         {% endfor %}
                     </div>
                 </div>

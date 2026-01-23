@@ -138,7 +138,8 @@ async def season_detail(request: Request, season: str, db: Session = Depends(get
                     't2_score': 0,
                     'first_date': g.date,
                     'last_date': g.date,
-                    'r_hint': None
+                    'r_hint': None,
+                    'r_pos': 99 # Default position for sorting
                 }
             
             s = series_map[s_key]
@@ -156,36 +157,44 @@ async def season_detail(request: Request, season: str, db: Session = Depends(get
             if g.date < s['first_date']: s['first_date'] = g.date
             if g.date > s['last_date']: s['last_date'] = g.date
             
+            # Detección de ronda y POSICIÓN basada en Game ID
             try:
                 if len(g.id) == 10:
                     if is_ist:
-                        # Lógica específica para NBA Cup (IDs 1201-04 QF, 1229-30 SF, 006 Final)
-                        if g.id.startswith('006'): s['r_hint'] = 4
-                        elif g.id.endswith('1229') or g.id.endswith('1230'): s['r_hint'] = 3
-                        elif any(g.id.endswith(x) for x in ['1201', '1202', '1203', '1204']): s['r_hint'] = 2
+                        # Final NBA Cup siempre es prefijo 006
+                        if g.id.startswith('006'): 
+                            s['r_hint'] = 4
+                            s['r_pos'] = 0
+                        else:
+                            # Eliminatorias NBA Cup (RS=True)
+                            # QF: 1201, 1202, 1203, 1204
+                            # SF: 1229, 1230
+                            if g.id.endswith('1201'): s['r_pos'] = 0; s['r_hint'] = 2
+                            elif g.id.endswith('1202'): s['r_pos'] = 1; s['r_hint'] = 2
+                            elif g.id.endswith('1203'): s['r_pos'] = 2; s['r_hint'] = 2
+                            elif g.id.endswith('1204'): s['r_pos'] = 3; s['r_hint'] = 2
+                            elif g.id.endswith('1229'): s['r_pos'] = 0; s['r_hint'] = 3
+                            elif g.id.endswith('1230'): s['r_pos'] = 1; s['r_hint'] = 3
                     else:
-                        # Lógica para Playoffs estándar
-                        if g.id.startswith('004') and g.id[7] != '0':
+                        # Playoffs estándar (004)
+                        # Estructura: 004 YY 00 R Z G
+                        # R (Ronda): dígito 8 (index 7)
+                        # Z (Posición): dígito 9 (index 8)
+                        if g.id.startswith('004'):
                             s['r_hint'] = int(g.id[7])
+                            s['r_pos'] = int(g.id[8])
             except: pass
 
-        sorted_series = sorted(series_map.values(), key=lambda x: x['first_date'])
-        total_series = len(sorted_series)
+        # Ordenar las series por posición (r_pos) para que el cuadro sea consistente
+        sorted_series = sorted(series_map.values(), key=lambda x: (x['r_hint'] or 0, x['r_pos']))
         
-        for i, s in enumerate(sorted_series):
+        for s in sorted_series:
             r = s['r_hint']
+            # Fallback de ronda por si fallan los IDs (no debería ocurrir con IDs oficiales)
             if not r:
-                if is_ist:
-                    # Fallback para IST si los IDs fallan
-                    if i < 4: r = 2
-                    elif i < 6: r = 3
-                    else: r = 4
-                else:
-                    # Fallback para Playoffs estándar
-                    if i < 8: r = 1
-                    elif i < 12: r = 2
-                    elif i < 14: r = 3
-                    else: r = 4
+                # Si llegamos aquí, usamos una estimación cronológica básica
+                # pero esto rompería la alineación vertical perfecta
+                continue 
             
             if r in rounds_data:
                 rounds_data[r].append({
@@ -198,6 +207,7 @@ async def season_detail(request: Request, season: str, db: Session = Depends(get
                 })
         
         return rounds_data
+
 
     # Obtener Playoffs
     po_games = db.query(Game)\
@@ -217,40 +227,25 @@ async def season_detail(request: Request, season: str, db: Session = Depends(get
             })
 
     # Obtener IST Knockout (NBA Cup)
-    # Solo para temporadas 2023-24 en adelante
     formatted_ist_bracket = []
-    try:
-        season_start_year = int(season.split('-')[0])
-    except:
-        season_start_year = 0
+    
+    # Solo partidos de la fase eliminatoria de la Copa
+    # Un partido de fase final de copa (Final) NO es Regular Season (según la NBA)
+    # Los partidos de eliminatorias previas (QF/SF) SÍ son Regular Season.
+    # Por tanto, filtramos por IST=True y (RS=False O IDs de eliminatorias)
+    ist_ko_games = db.query(Game)\
+        .options(joinedload(Game.home_team), joinedload(Game.away_team))\
+        .filter(Game.season == season, Game.ist == True)\
+        .filter(or_(
+            Game.rs == False,
+            Game.id.endswith('01201'), Game.id.endswith('01202'),
+            Game.id.endswith('01203'), Game.id.endswith('01204'),
+            Game.id.endswith('01229'), Game.id.endswith('01230')
+        ))\
+        .order_by(asc(Game.date)).all()
 
-    if season_start_year >= 2023:
-        # Filtramos por IDs específicos que sabemos corresponden a la fase eliminatoria
-        # Final: 006...
-        # QF/SF: 002...1201-04 y 1229-30
-        ist_games = db.query(Game)\
-            .options(joinedload(Game.home_team), joinedload(Game.away_team))\
-            .filter(Game.season == season)\
-            .filter(or_(
-                Game.id.startswith('006'),
-                and_(Game.id.ilike('%01201'), Game.rs == True),
-                and_(Game.id.ilike('%01202'), Game.rs == True),
-                and_(Game.id.ilike('%01203'), Game.rs == True),
-                and_(Game.id.ilike('%01204'), Game.rs == True),
-                and_(Game.id.ilike('%01229'), Game.rs == True),
-                and_(Game.id.ilike('%01230'), Game.rs == True)
-            ))\
-            .order_by(asc(Game.date)).all()
-        
-        # Asegurarnos de que no haya duplicados
-        unique_ist_games = []
-        seen_ids = set()
-        for g in ist_games:
-            if g.id not in seen_ids:
-                unique_ist_games.append(g)
-                seen_ids.add(g.id)
-
-        ist_rounds = get_bracket_data(unique_ist_games, is_ist=True)
+    if ist_ko_games:
+        ist_rounds = get_bracket_data(ist_ko_games, is_ist=True)
         round_names_ist = {2: 'Cuartos de Final', 3: 'Semifinales', 4: 'Final (NBA Cup)'}
         for r_num in sorted(ist_rounds.keys()):
             if ist_rounds[r_num]:

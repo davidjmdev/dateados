@@ -98,3 +98,33 @@
     </div>
 </div>
 {% endmacro %}
+
+{% macro bracket_series_card(series, season, is_ist=False) %}
+{% set t1_val = series.home_score if is_ist else series.home_wins %}
+{% set t2_val = series.away_score if is_ist else series.away_wins %}
+{% set t1_win = (series.home_score > series.away_score) if is_ist else (series.home_wins >= 4) %}
+{% set t2_win = (series.away_score > series.home_score) if is_ist else (series.away_wins >= 4) %}
+
+<div class="py-2">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden relative">
+        <div class="divide-y divide-gray-100 dark:divide-gray-700">
+            <!-- Team 1 (Home) -->
+            <div class="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition {% if t1_win %}bg-green-50 dark:bg-green-900/20{% endif %}" onclick="window.location='/teams/{{ series.home_team.id }}?season={{ season }}'">
+                <div class="flex items-center space-x-3 overflow-hidden group">
+                    <img src="https://cdn.nba.com/logos/nba/{{ series.home_team.id }}/primary/L/logo.svg" class="h-6 w-6 object-contain" alt="">
+                    <span class="text-xs font-bold text-gray-900 dark:text-gray-100 truncate">{{ series.home_team.abbreviation }}</span>
+                </div>
+                <span class="text-base font-black text-gray-900 dark:text-gray-100">{{ t1_val }}</span>
+            </div>
+            <!-- Team 2 (Away) -->
+            <div class="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition {% if t2_win %}bg-green-50 dark:bg-green-900/20{% endif %}" onclick="window.location='/teams/{{ series.away_team.id }}?season={{ season }}'">
+                <div class="flex items-center space-x-3 overflow-hidden group">
+                    <img src="https://cdn.nba.com/logos/nba/{{ series.away_team.id }}/primary/L/logo.svg" class="h-6 w-6 object-contain" alt="">
+                    <span class="text-xs font-bold text-gray-900 dark:text-gray-100 truncate">{{ series.away_team.abbreviation }}</span>
+                </div>
+                <span class="text-base font-black text-gray-900 dark:text-gray-100">{{ t2_val }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}

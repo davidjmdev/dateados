@@ -92,111 +92,112 @@ class NBAApiClient:
         return result
     
     def fetch_season_games(self, season: str) -> List[dict]:
-        """Obtiene todos los partidos de una temporada con su fecha local.
+        """Obtiene todos los partidos de una temporada con su clasificación consolidada.
+        
+        Consulta la API de la NBA para cada tipo de competición (RS, PO, PI).
+        La clasificación de la NBA Cup (IST) se realiza mediante patrones de ID iniciales
+        que luego son refinados por GameIngestion usando el gameSubtype oficial.
         
         Args:
             season: Temporada en formato "YYYY-YY" (ej: "2023-24")
             
         Returns:
-            Lista de diccionarios con 'game_id' y 'game_date' (date object)
-            ordenados por fecha descendente.
+            Lista de diccionarios con 'game_id', 'game_date' y flags de tipo:
+            'is_rs', 'is_po', 'is_pi', 'is_ist'
             
         Raises:
             FatalIngestionError: Si la API falla persistentemente
         """
         logger.info(f"Obteniendo partidos para temporada {season}...")
         
-        # Lista de DataFrames para concatenar
         dfs = []
         
-        # Regular Season
-        rs = fetch_with_retry(
-            lambda: LeagueGameFinder(
-                season_nullable=season, 
-                season_type_nullable='Regular Season', 
-                timeout=API_TIMEOUT
-            ),
-            error_context=f"LeagueGameFinder({season}, Regular Season)",
-            fatal=True
-        )
+        # Mapeo de tipos de temporada oficiales
+        season_types = {
+            'Regular Season': 'is_rs',
+            'Playoffs': 'is_po',
+            'PlayIn': 'is_pi'
+        }
         
-        if rs:
-            dfs.append(rs.get_data_frames()[0])
-        
-        # Playoffs
-        po = fetch_with_retry(
-            lambda: LeagueGameFinder(
-                season_nullable=season,
-                season_type_nullable='Playoffs',
-                timeout=API_TIMEOUT
-            ),
-            error_context=f"LeagueGameFinder({season}, Playoffs)",
-            fatal=True
-        )
-        
-        if po:
-            dfs.append(po.get_data_frames()[0])
-        
-        # PlayIn (desde 2020-21)
-        if int(season.split('-')[0]) >= 2020:
-            pi = fetch_with_retry(
-                lambda: LeagueGameFinder(
-                    season_nullable=season,
-                    season_type_nullable='PlayIn',
+        for nba_type, flag_name in season_types.items():
+            if nba_type == 'PlayIn' and int(season.split('-')[0]) < 2020:
+                continue
+                
+            res = fetch_with_retry(
+                lambda nt=nba_type: LeagueGameFinder(
+                    season_nullable=season, 
+                    season_type_nullable=nt, 
                     timeout=API_TIMEOUT
                 ),
-                error_context=f"LeagueGameFinder({season}, PlayIn)",
-                fatal=False  # PlayIn puede no existir en todas las temporadas
+                error_context=f"LeagueGameFinder({season}, {nba_type})",
+                fatal=True
             )
             
-            if pi:
-                dfs.append(pi.get_data_frames()[0])
-        
-        # NBA Cup / IST (desde 2023-24)
-        if int(season.split('-')[0]) >= 2023:
-            ist = fetch_with_retry(
-                lambda: LeagueGameFinder(
-                    season_nullable=season,
-                    timeout=API_TIMEOUT
-                ),
-                error_context=f"LeagueGameFinder({season}, IST)",
-                fatal=False
-            )
-            
-            if ist:
-                ist_df = ist.get_data_frames()[0]
-                if not ist_df.empty:
-                    # Filtrar solo partidos de NBA Cup (ID empieza con '006')
-                    # Nota: Los partidos 002 ya se capturan en el bloque de Regular Season
-                    ist_only = ist_df[ist_df['GAME_ID'].str.startswith('006')]
-                    if not ist_only.empty:
-                        dfs.append(ist_only)
-        
-        # Filtrar DataFrames vacíos
-        dfs = [d for d in dfs if not d.empty]
+            if res:
+                df = res.get_data_frames()[0]
+                if not df.empty:
+                    df[flag_name] = True
+                    dfs.append(df)
         
         if not dfs:
             logger.warning(f"No se encontraron partidos para {season}")
             return []
         
         # Combinar todos los DataFrames
-        df = pd.concat(dfs)
+        combined_df = pd.concat(dfs)
         
-        # Eliminar duplicados de partidos (un partido puede salir en RS e IST)
-        df = df.drop_duplicates('GAME_ID')
+        # Asegurar columnas de tipo y llenar NaNs
+        for flag in season_types.values():
+            if flag not in combined_df.columns:
+                combined_df[flag] = False
+            else:
+                combined_df[flag] = combined_df[flag].fillna(False)
+        
+        # Consolidar flags por GAME_ID
+        consolidated = combined_df.groupby('GAME_ID').agg({
+            'GAME_DATE': 'first',
+            'is_rs': 'max',
+            'is_po': 'max',
+            'is_pi': 'max'
+        }).reset_index()
         
         # Ordenar por fecha descendente
-        df = df.sort_values(['GAME_DATE', 'GAME_ID'], ascending=[False, False])
+        consolidated = consolidated.sort_values(['GAME_DATE', 'GAME_ID'], ascending=[False, False])
         
         from ingestion.utils import parse_date
         games = []
-        for _, row in df.iterrows():
+        for _, row in consolidated.iterrows():
+            gid = str(row['GAME_ID'])
+            prefix = gid[:3]
+            suffix = gid[5:]
+            
+            # Predicción inicial de IST basada en patrones de ID conocidos de la NBA
+            # Esto será refinado por el gameSubtype durante la ingesta real del partido.
+            is_ist = False
+            if prefix == '006': # Final
+                is_ist = True
+            elif prefix == '002':
+                # Eliminatorias (Cuartos y Semis)
+                if suffix in ['01201', '01202', '01203', '01204', '01229', '01230']:
+                    is_ist = True
+                # Grupos (00001-00060 reservado en temporadas modernas)
+                elif int(season.split('-')[0]) >= 2024:
+                    try:
+                        suffix_int = int(suffix)
+                        if 1 <= suffix_int <= 60:
+                            is_ist = True
+                    except ValueError: pass
+
             games.append({
-                'game_id': row['GAME_ID'],
-                'game_date': parse_date(row['GAME_DATE'])
+                'game_id': gid,
+                'game_date': parse_date(row['GAME_DATE']),
+                'is_rs': bool(row['is_rs']),
+                'is_po': bool(row['is_po']),
+                'is_pi': bool(row['is_pi']),
+                'is_ist': is_ist
             })
         
-        logger.info(f"Encontrados {len(games)} partidos para {season}")
+        logger.info(f"Encontrados {len(games)} partidos consolidados para {season}")
         return games
     
     def fetch_team_roster(self, team_id: int, season: str) -> Optional[pd.DataFrame]:
@@ -263,7 +264,7 @@ class NBAApiClient:
             fatal=fatal
         )
         return result
-
+    
     def fetch_player_info(self, player_id: int, fatal: bool = True) -> Optional[Any]:
         """Obtiene ficha detallada de un jugador (biografía).
         
