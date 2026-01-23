@@ -16,7 +16,14 @@ from sqlalchemy.orm import Session
 from db.models import PlayerGameStats, Player, Game
 from outliers.base import OutlierResult
 from outliers.models import StreakAllTimeRecord, PlayerSeasonState
-from outliers.ml.inference import LeagueOutlierDetector
+
+try:
+    from outliers.ml.inference import LeagueOutlierDetector
+    HAS_ML = True
+except ImportError:
+    LeagueOutlierDetector = None
+    HAS_ML = False
+
 from outliers.stats.player_zscore import PlayerZScoreDetector
 from outliers.stats.streaks import StreakDetector
 
@@ -98,10 +105,13 @@ class OutlierRunner:
         self._player_detector: Optional[PlayerZScoreDetector] = None
         self._streak_detector: Optional[StreakDetector] = None
         
-        if run_league:
+        if run_league and HAS_ML:
             self._league_detector = LeagueOutlierDetector(
                 percentile_threshold=league_percentile
             )
+        elif run_league and not HAS_ML:
+            logger.warning("LeagueOutlierDetector no disponible (torch no instalado). Omitiendo.")
+            self.run_league = False
         
         if run_player:
             self._player_detector = PlayerZScoreDetector(

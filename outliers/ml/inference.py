@@ -17,7 +17,13 @@ from db.models import PlayerGameStats, Player, Game
 from outliers.models import LeagueOutlier
 from outliers.base import BaseDetector, OutlierResult
 from outliers.ml.data_pipeline import DataPipeline, StandardScaler, MODELS_DIR
-from outliers.ml.autoencoder import LeagueAnomalyDetector
+
+try:
+    from outliers.ml.autoencoder import LeagueAnomalyDetector
+    HAS_ML = True
+except ImportError:
+    LeagueAnomalyDetector = None
+    HAS_ML = False
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +53,10 @@ class LeagueOutlierDetector(BaseDetector):
         if self._model is not None:
             return True
         
+        if not HAS_ML:
+            logger.warning("Sistema de ML no disponible (torch no instalado)")
+            return False
+            
         if not LeagueAnomalyDetector.exists():
             logger.warning("No hay modelo de autoencoder entrenado")
             return False

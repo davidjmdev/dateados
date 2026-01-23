@@ -26,7 +26,14 @@ from db import get_session
 from db.models import PlayerGameStats, Game
 from outliers.models import LeagueOutlier, PlayerOutlier, StreakRecord, StreakAllTimeRecord, STREAK_HISTORICAL_PERCENTAGE
 from outliers.runner import run_backfill, OutlierRunner
-from outliers.ml.autoencoder import LeagueAnomalyDetector
+
+try:
+    from outliers.ml.autoencoder import LeagueAnomalyDetector
+    HAS_AUTOENCODER = True
+except ImportError:
+    LeagueAnomalyDetector = None
+    HAS_AUTOENCODER = False
+
 from outliers.stats.streaks import get_streak_summary
 
 # Configurar logging
@@ -150,7 +157,9 @@ def cmd_stats(args: argparse.Namespace) -> int:
     
     # Estado del modelo
     print("\n--- MODELO DE AUTOENCODER ---")
-    if LeagueAnomalyDetector.exists():
+    if not HAS_AUTOENCODER:
+        print("Estado: No disponible (torch no instalado)")
+    elif LeagueAnomalyDetector.exists():
         try:
             detector = LeagueAnomalyDetector.load()
             print(f"Estado: Entrenado")
@@ -197,6 +206,10 @@ def cmd_validate_model(args: argparse.Namespace) -> int:
     """Valida el modelo de autoencoder."""
     print("Validando modelo de autoencoder...")
     
+    if not HAS_AUTOENCODER:
+        print("ERROR: Sistema de ML no disponible (torch no instalado).")
+        return 1
+    
     if not LeagueAnomalyDetector.exists():
         print("ERROR: No hay modelo entrenado.")
         print("Ejecute: python -m outliers.cli train")
@@ -229,6 +242,10 @@ def cmd_validate_model(args: argparse.Namespace) -> int:
 
 def cmd_train(args: argparse.Namespace) -> int:
     """Entrena el modelo de autoencoder."""
+    if not HAS_AUTOENCODER:
+        print("ERROR: No se puede entrenar sin torch instalado.")
+        return 1
+        
     epochs = args.epochs
     hidden_dims = [int(x) for x in args.hidden_dims.split(',')]
     

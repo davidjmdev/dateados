@@ -13,7 +13,12 @@ from outliers.ml.data_pipeline import (
     STAT_FEATURES,
     get_feature_names,
 )
-from outliers.ml.autoencoder import LeagueAnomalyDetector
+
+try:
+    from outliers.ml.autoencoder import LeagueAnomalyDetector
+except ImportError:
+    LeagueAnomalyDetector = None
+
 from outliers.ml.inference import (
     LeagueOutlierDetector,
     detect_league_outliers,
