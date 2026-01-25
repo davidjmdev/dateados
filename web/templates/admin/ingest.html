@@ -68,49 +68,19 @@
                     </div>
                 </div>
 
-                <div class="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-100 dark:border-gray-700">
-                    <p class="text-[10px] font-bold text-gray-400 uppercase mb-2">Última actividad</p>
-                    <div id="log-console" class="text-xs font-mono text-gray-600 dark:text-gray-400 h-24 overflow-y-auto custom-scrollbar">
-                        <p>[{{ status.updated_at if status else '' }}] Esperando actualización...</p>
+                <div class="bg-black rounded-xl border border-gray-800 shadow-2xl overflow-hidden">
+                    <div id="log-console" class="text-[11px] font-mono p-6 h-80 overflow-y-auto custom-scrollbar bg-black text-gray-300 leading-relaxed">
+                        <p class="text-gray-600">// Terminal lista. Esperando eventos...</p>
                     </div>
                 </div>
             </div>
         </div>
     {% endcall %}
-
-    <!-- Info Section -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/40 rounded-xl">
-            <div class="flex space-x-3">
-                <svg class="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <div>
-                    <h4 class="text-sm font-bold text-amber-900 dark:text-amber-200">Notas de Producción</h4>
-                    <p class="text-xs text-amber-800/80 dark:text-amber-400/80 mt-1">
-                        En Render.com, la ingesta se ejecuta de forma secuencial para proteger los 512MB de RAM. No cierres esta pestaña mientras el proceso esté activo para recibir el feedback en vivo.
-                    </p>
-                </div>
-            </div>
-        </div>
-        <div class="p-4 bg-slate-50 dark:bg-slate-800 border border-gray-200 dark:border-gray-700 rounded-xl">
-            <div class="flex space-x-3">
-                <svg class="h-5 w-5 text-slate-600 dark:text-slate-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <div>
-                    <h4 class="text-sm font-bold text-slate-900 dark:text-slate-100">Programación Automática</h4>
-                    <p class="text-xs text-slate-500 dark:text-gray-400 mt-1">
-                        Recuerda que este panel permite lanzamientos manuales, pero el sistema también está preparado para tareas programadas (Cron).
-                    </p>
-                </div>
-            </div>
-        </div>
-    </div>
 </div>
 
 <script>
     let pollInterval;
+    let lastLogId = 0;
 
     function startIngestion() {
         const btn = document.getElementById('start-ingest-btn');
@@ -123,6 +93,8 @@
                 if (data.status === 'success') {
                     document.getElementById('progress-section').classList.remove('hidden');
                     updateBadge('running');
+                    // Limpiar consola al iniciar nueva
+                    document.getElementById('log-console').innerHTML = '<p class="text-blue-400 font-bold">>> Iniciando nueva sesión de ingesta...</p>';
                     startPolling();
                 } else {
                     alert(data.message);
@@ -139,7 +111,41 @@
 
     function startPolling() {
         if (pollInterval) clearInterval(pollInterval);
-        pollInterval = setInterval(updateStatus, 3000);
+        // Polling más frecuente para logs (2s)
+        pollInterval = setInterval(() => {
+            updateStatus();
+            updateLogs();
+        }, 2000);
+    }
+
+    function updateLogs() {
+        fetch('/admin/ingest/logs?limit=50')
+            .then(res => res.json())
+            .then(logs => {
+                const console = document.getElementById('log-console');
+                let hasNew = false;
+
+                logs.forEach(log => {
+                    if (log.id > lastLogId) {
+                        const p = document.createElement('p');
+                        const ts = new Date(log.timestamp).toLocaleTimeString();
+                        
+                        let levelClass = 'text-gray-500';
+                        if (log.level === 'ERROR') levelClass = 'text-red-500 font-bold';
+                        if (log.level === 'WARNING') levelClass = 'text-amber-500';
+                        if (log.level === 'INFO') levelClass = 'text-green-400';
+
+                        p.innerHTML = `<span class="text-gray-600">[${ts}]</span> <span class="${levelClass}">${log.level.padEnd(7)}</span> <span class="text-blue-400">${log.module}:</span> ${log.message}`;
+                        console.appendChild(p);
+                        lastLogId = log.id;
+                        hasNew = true;
+                    }
+                });
+
+                if (hasNew) {
+                    console.scrollTop = console.scrollHeight;
+                }
+            });
     }
 
     function updateStatus() {
@@ -149,31 +155,24 @@
                 const bar = document.getElementById('progress-bar');
                 const percent = document.getElementById('progress-percent');
                 const message = document.getElementById('progress-message');
-                const console = document.getElementById('log-console');
                 const btn = document.getElementById('start-ingest-btn');
 
                 bar.style.width = data.progress + '%';
                 percent.innerText = data.progress + '%';
                 message.innerText = data.message;
 
-                // Simple log update
-                if (data.message !== message.dataset.lastMsg) {
-                    const p = document.createElement('p');
-                    p.innerText = `[${new Date().toLocaleTimeString()}] ${data.message}`;
-                    console.prepend(p);
-                    message.dataset.lastMsg = data.message;
-                }
-
                 if (data.status !== 'running') {
-                    clearInterval(pollInterval);
+                    // No detenemos el polling de logs inmediatamente para ver el mensaje final
                     btn.disabled = false;
                     btn.innerText = 'Iniciar Sincronización';
                     updateBadge(data.status);
                     
                     if (data.status === 'completed') {
                         bar.classList.replace('bg-blue-600', 'bg-green-500');
+                        clearInterval(pollInterval);
                     } else if (data.status === 'failed') {
                         bar.classList.replace('bg-blue-600', 'bg-red-500');
+                        clearInterval(pollInterval);
                     }
                 }
             });

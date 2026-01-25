@@ -6,9 +6,7 @@ from typing import Optional
 from datetime import datetime
 
 from db.connection import get_session, get_engine
-from db.models import SystemStatus, Base
-from ingestion.core import IncrementalIngestion
-from ingestion.api_client import NBAApiClient
+from db.models import SystemStatus, Base, LogEntry
 from ingestion.utils import ProgressReporter
 
 router = APIRouter(prefix="/admin")
@@ -22,6 +20,20 @@ def get_db():
         yield db
     finally:
         db.close()
+
+@router.get("/ingest/logs")
+async def get_ingestion_logs(limit: int = 50, db: Session = Depends(get_db)):
+    """Retorna los últimos logs de la base de datos."""
+    logs = db.query(LogEntry).order_by(LogEntry.timestamp.desc()).limit(limit).all()
+    return [
+        {
+            "id": log.id,
+            "timestamp": log.timestamp.isoformat(),
+            "level": log.level,
+            "module": log.module,
+            "message": log.message
+        } for log in reversed(logs)
+    ]
 
 # Asegurar que la tabla system_status existe (Migración segura) - YA SE HACE EN APP.PY VIA INIT_DB
 
