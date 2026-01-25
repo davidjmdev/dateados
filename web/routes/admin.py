@@ -8,6 +8,8 @@ from datetime import datetime
 from db.connection import get_session, get_engine
 from db.models import SystemStatus, Base, LogEntry
 from ingestion.utils import ProgressReporter
+from db.utils.log_cleanup import cleanup_for_new_ingestion
+from ingestion.checkpoints import CheckpointManager
 
 router = APIRouter(prefix="/admin")
 
@@ -80,11 +82,25 @@ def run_ingestion_task():
         reporter.fail(str(e))
 
 @router.post("/ingest/run")
-async def start_ingestion(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+async def start_ingestion(background_tasks: BackgroundTasks, clean: bool = False, db: Session = Depends(get_db)):
     # Verificar si ya está corriendo
     status = db.query(SystemStatus).filter_by(task_name="incremental_ingestion").first()
     if status and status.status == "running":
         return {"status": "error", "message": "Ya hay una ingesta en curso."}
+    
+    if clean:
+        # 1. Limpiar logs y status
+        cleanup_for_new_ingestion(db, clear_status=True)
+        # 2. Borrar checkpoints incrementales (usando la clave por defecto 'global' que usa el CLI)
+        # o si la temporada actual es conocida, se podria ser mas especifico, 
+        # pero el CLI incremental usa la clave por defecto si no se especifica.
+        # En IncrementalIngestion.run() se usa self.checkpoints = checkpoint_mgr or CheckpointManager()
+        # que usa DEFAULT_KEY = 'global'
+        CheckpointManager().clear()
+        db.commit()
+        
+        # Recargar status tras limpieza
+        status = None
     
     # Reiniciar estado
     if not status:

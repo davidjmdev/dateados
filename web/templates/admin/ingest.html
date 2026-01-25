@@ -39,12 +39,20 @@
                     </p>
                 </div>
                 
-                <button id="start-ingest-btn" 
-                        onclick="startIngestion()"
-                        {% if status and status.status == 'running' %}disabled{% endif %}
-                        class="px-8 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-blue-500/20 active:scale-95">
-                    Iniciar Sincronización
-                </button>
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <button id="start-ingest-btn" 
+                            onclick="startIngestion(false)"
+                            {% if status and status.status == 'running' %}disabled{% endif %}
+                            class="px-8 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-blue-500/20 active:scale-95">
+                        Iniciar Sincronización
+                    </button>
+                    <button id="reset-ingest-btn" 
+                            onclick="startIngestion(true)"
+                            {% if status and status.status == 'running' %}disabled{% endif %}
+                            class="px-6 py-3 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-xl font-bold transition-all active:scale-95">
+                        Reiniciar desde cero
+                    </button>
+                </div>
             </div>
 
             <!-- Progress Section (Hidden by default unless running) -->
@@ -82,29 +90,34 @@
     let pollInterval;
     let lastLogId = 0;
 
-    function startIngestion() {
+    function startIngestion(clean = false) {
         const btn = document.getElementById('start-ingest-btn');
+        const resetBtn = document.getElementById('reset-ingest-btn');
         btn.disabled = true;
-        btn.innerText = 'Iniciando...';
+        resetBtn.disabled = true;
+        btn.innerText = clean ? 'Reiniciando...' : 'Iniciando...';
         
-        fetch('/admin/ingest/run', { method: 'POST' })
+        fetch(`/admin/ingest/run?clean=${clean}`, { method: 'POST' })
             .then(res => res.json())
             .then(data => {
                 if (data.status === 'success') {
                     document.getElementById('progress-section').classList.remove('hidden');
                     updateBadge('running');
                     // Limpiar consola al iniciar nueva
-                    document.getElementById('log-console').innerHTML = '<p class="text-blue-400 font-bold">>> Iniciando nueva sesión de ingesta...</p>';
+                    document.getElementById('log-console').innerHTML = `<p class="text-blue-400 font-bold">>> Iniciando ${clean ? 'reinicio' : 'nueva sesión'} de ingesta...</p>`;
+                    if (clean) lastLogId = 0;
                     startPolling();
                 } else {
                     alert(data.message);
                     btn.disabled = false;
+                    resetBtn.disabled = false;
                     btn.innerText = 'Iniciar Sincronización';
                 }
             })
             .catch(err => {
                 console.error(err);
                 btn.disabled = false;
+                resetBtn.disabled = false;
                 btn.innerText = 'Iniciar Sincronización';
             });
     }
@@ -164,6 +177,7 @@
                 if (data.status !== 'running') {
                     // No detenemos el polling de logs inmediatamente para ver el mensaje final
                     btn.disabled = false;
+                    document.getElementById('reset-ingest-btn').disabled = false;
                     btn.innerText = 'Iniciar Sincronización';
                     updateBadge(data.status);
                     
