@@ -769,30 +769,43 @@ class IncrementalIngestion(BaseIngestion):
         super().__init__(api_client, checkpoint_mgr)
         self.skip_outliers = skip_outliers
     
-    def run(self, limit_seasons: Optional[int] = None, reporter: Optional[ProgressReporter] = None):
+    def run(self, limit_seasons: Optional[int] = None, reporter: Optional[ProgressReporter] = None, resume: bool = False):
         """Ejecuta la sincronización incremental."""
         limit_text = f"últimas {limit_seasons} temporadas" if limit_seasons else "hasta encontrar procesado"
-        logger.info(f"Iniciando ingesta incremental ({limit_text})...")
+        logger.info(f"Iniciando ingesta incremental ({limit_text}, resume={resume})...")
         if reporter: reporter.update(0, "Iniciando ingesta incremental...")
         
         session = get_session()
         try:
-            # 1. Entidades base
+            # 1. Entidades base (Equipos/Jugadores)
             self.sync_base_entities(session, reporter)
 
             # 2. Procesar partidos recientes
             all_seasons = sorted(get_all_seasons(), reverse=True)
             seasons_to_process = all_seasons[:limit_seasons] if limit_seasons else all_seasons
             
+            # Cargar checkpoint si aplica
+            checkpoint = self.checkpoints.load_checkpoint() if resume else None
+            resume_season = checkpoint.get('season') if checkpoint else None
+            resume_game_id = checkpoint.get('game_id') if checkpoint else None
+
             new_seasons = set()
             new_game_ids = []
             
             for i, season in enumerate(seasons_to_process):
+                # Si estamos reanudando, saltar temporadas hasta llegar a la del checkpoint
+                if resume_season and season > resume_season:
+                    continue
+
                 msg = f"Procesando temporada {season}..."
                 logger.info(msg)
                 if reporter: reporter.update(5 + int((i / len(seasons_to_process)) * 60), msg)
 
-                stop, processed_ids = self._process_incremental_season(session, season)
+                # Pasar el game_id de reanudación solo para la temporada del checkpoint
+                current_resume_id = resume_game_id if season == resume_season else None
+                
+                stop, processed_ids = self._process_incremental_season(session, season, current_resume_id, reporter=reporter)
+                
                 if processed_ids:
                     new_seasons.add(season)
                     new_game_ids.extend(processed_ids)
@@ -800,6 +813,13 @@ class IncrementalIngestion(BaseIngestion):
                 if stop:
                     logger.info("Detectado partido ya finalizado. Deteniendo.")
                     break
+                
+                # Limpiar resume_season tras procesarla para que las siguientes sigan flujo normal
+                resume_season = None
+                resume_game_id = None
+            
+            # Al finalizar con éxito, limpiar checkpoint
+            self.checkpoints.clear()
             
             # 3. Regenerar tablas derivadas
             if new_seasons:
@@ -816,6 +836,8 @@ class IncrementalIngestion(BaseIngestion):
             if reporter: reporter.complete("Base de datos actualizada.")
             logger.info("✅ Ingesta incremental finalizada")
             
+        except FatalIngestionError:
+            raise
         except Exception as e:
             if reporter: reporter.fail(str(e))
             logger.error(f"Error en incremental: {e}")
@@ -824,38 +846,66 @@ class IncrementalIngestion(BaseIngestion):
             session.close()
             clear_memory()
 
-    def _process_incremental_season(self, session, season):
+    def _process_incremental_season(self, session, season, resume_game_id=None, reporter=None):
         """Procesa una temporada incrementalmente."""
         games_data = self.api.fetch_season_games(season)
         if not games_data: return False, []
         
+        # Si estamos reanudando, buscar el índice del último partido procesado
+        start_idx = 0
+        if resume_game_id:
+            for idx, gd in enumerate(games_data):
+                if gd['game_id'] == resume_game_id:
+                    start_idx = idx + 1 # Empezar en el siguiente
+                    break
+            logger.info(f"Reanudando {season} desde el partido tras {resume_game_id} (indice {start_idx})")
+
         processed_ids = []
         today_str = date.today().isoformat()
         
-        for j, gd in enumerate(games_data):
+        for j in range(start_idx, len(games_data)):
+            gd = games_data[j]
             gid, local_date = gd['game_id'], gd['game_date']
             
             # Verificar si ya existe
+            # NOTA: Solo aplicamos la parada por "ya existente" si NO estamos reanudando
+            # Si estamos reanudando, queremos completar lo que faltaba de esta temporada
             existing = session.query(Game.status, Game.home_score, Game.date).filter(Game.id == gid).first()
-            if existing and (existing.status == 3 or (existing.status == 1 and existing.home_score > 0 and str(existing.date) < today_str)):
+            
+            # Condición de parada: partido ya en DB y finalizado
+            is_finished = existing and (existing.status == 3 or (existing.status == 1 and existing.home_score > 0 and str(existing.date) < today_str))
+            
+            if is_finished and not resume_game_id:
                 if existing.date != local_date:
                     session.query(Game).filter(Game.id == gid).update({"date": local_date})
                     session.commit()
                 return True, processed_ids
             
-            # Ingestar con flags obligatorios desde la API
-            res = self.game_ingestion.ingest_game(
-                session, gid,
-                is_rs=gd.get('is_rs', False),
-                is_po=gd.get('is_po', False),
-                is_pi=gd.get('is_pi', False),
-                is_ist=gd.get('is_ist', False),
-                season_fallback=season
-            )
-            if res is True: processed_ids.append(gid)
-            elif res is False: raise FatalIngestionError(f"Fallo en partido incremental {gid}")
-            
-            if j % 10 == 0: clear_memory()
-            time.sleep(API_DELAY)
+            # Si el partido existe pero no estaba terminado o estamos forzando reanudación, lo procesamos
+            try:
+                res = self.game_ingestion.ingest_game(
+                    session, gid,
+                    is_rs=gd.get('is_rs', False),
+                    is_po=gd.get('is_po', False),
+                    is_pi=gd.get('is_pi', False),
+                    is_ist=gd.get('is_ist', False),
+                    season_fallback=season
+                )
+                if res is True: processed_ids.append(gid)
+                elif res is False: raise FatalIngestionError(f"Fallo en partido incremental {gid}")
+                
+                # Checkpoint cada 10 partidos en modo incremental
+                if j > 0 and j % 10 == 0:
+                    self.checkpoints.save_games_checkpoint(season, gid)
+                    if reporter: reporter.increment(f"Partido {gid[:8]}", delta=0) # Solo para actualizar logs/ETA
+                
+                if j % 5 == 0: clear_memory()
+                time.sleep(API_DELAY)
+
+            except FatalIngestionError:
+                # Guardar checkpoint exacto antes de lanzar el error fatal
+                self.checkpoints.save_games_checkpoint(season, gid)
+                raise
             
         return False, processed_ids
+

@@ -35,17 +35,36 @@ async def ingest_page(request: Request, db: Session = Depends(get_db)):
         "status": status
     })
 
+import subprocess
+import sys
+
 def run_ingestion_task():
-    """Ejecuta la ingesta incremental en segundo plano."""
-    api_client = NBAApiClient()
-    # Usamos get_session directamente aquí ya que estamos fuera del ciclo de vida de FastAPI request
-    reporter = ProgressReporter("incremental_ingestion", session_factory=get_session)
+    """Ejecuta la ingesta incremental llamando al CLI como subproceso.
+    
+    Esto permite reutilizar la lógica de reinicio automático ante errores fatales
+    que ya tiene el CLI, sin riesgo de tirar abajo el servidor web.
+    El progreso se sigue viendo en la web porque el CLI actualiza SystemStatus.
+    """
+    python_exec = sys.executable
+    cmd = [python_exec, "-m", "ingestion.cli", "--mode", "incremental"]
     
     try:
-        ingestor = IncrementalIngestion(api_client)
-        # Sin limites, la ingesta incremental se detiene al encontrar partidos ya procesados
-        ingestor.run(reporter=reporter)
+        # Ejecutar el CLI y esperar a que termine (incluyendo sus propios reinicios internos)
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        stdout, stderr = process.communicate()
+        
+        if process.returncode != 0:
+            # Si el proceso termina con error a pesar de sus reintentos
+            reporter = ProgressReporter("incremental_ingestion", session_factory=get_session)
+            reporter.fail(f"El CLI terminó con código {process.returncode}. Error: {stderr}")
+            
     except Exception as e:
+        reporter = ProgressReporter("incremental_ingestion", session_factory=get_session)
         reporter.fail(str(e))
 
 @router.post("/ingest/run")
