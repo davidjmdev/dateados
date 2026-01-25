@@ -56,30 +56,30 @@ async def ingest_page(request: Request, db: Session = Depends(get_db)):
     })
 
 def stop_all_ingestions():
-    """Detiene todos los procesos de ingesta que se hayan lanzado desde la web."""
+    """Detiene todos los procesos de ingesta a nivel de sistema operativo."""
     global active_processes
-    if not active_processes:
-        return
     
-    # Informar en logs
     logger = logging.getLogger("web.admin")
-    logger.info(f"Deteniendo {len(active_processes)} procesos de ingesta activos...")
+    logger.info("Iniciando parada forzosa de procesos de ingesta...")
     
+    # 1. Intentar parada limpia de los procesos rastreados en esta instancia
     for process in active_processes:
         try:
-            # Enviar SIGINT (equivalente a Ctrl+C)
-            # El CLI tiene un manejador que matará a los hijos y limpiará la BD
             process.send_signal(signal.SIGINT)
-            
-            # Esperar hasta 5 segundos a que cierre de forma limpia
-            try:
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                # Si no cierra, forzar muerte
-                logger.warning(f"Proceso {process.pid} no cerró a tiempo. Forzando kill...")
-                process.kill()
-        except Exception as e:
-            logger.error(f"Error al detener proceso {getattr(process, 'pid', 'unknown')}: {e}")
+        except Exception:
+            pass
+    
+    # 2. Limpieza agresiva a nivel de Sistema Operativo (Crucial para Render/Multi-worker)
+    # Buscamos cualquier proceso que esté ejecutando el módulo de ingesta
+    try:
+        # Enviamos SIGINT (señal 2) a todos los procesos que coincidan con el patrón
+        subprocess.run(["pkill", "-2", "-f", "ingestion.cli"], capture_output=True)
+        time.sleep(2)
+        # Forzamos con SIGKILL (señal 9) para asegurar que no queden procesos colgados
+        subprocess.run(["pkill", "-9", "-f", "ingestion.cli"], capture_output=True)
+        logger.info("Comandos pkill ejecutados con éxito.")
+    except Exception as e:
+        logger.error(f"Error ejecutando pkill: {e}")
     
     active_processes = []
 
@@ -127,28 +127,28 @@ def run_ingestion_task():
 
 @router.post("/ingest/run")
 async def start_ingestion(background_tasks: BackgroundTasks, clean: bool = False, db: Session = Depends(get_db)):
-    # 1. Si es un reinicio, detener procesos anteriores PRIMERO
+    # 1. Si es un reinicio, detener procesos anteriores PRIMERO (A nivel de sistema)
     if clean:
         stop_all_ingestions()
-        # Dar un pequeño margen para que el SO libere recursos y el signal_handler limpie la BD
-        time.sleep(1)
+        # Dar un margen generoso para que el SO libere recursos y los hijos mueran
+        time.sleep(3)
 
     # 2. Verificar si ya está corriendo (para el modo normal)
-    status = db.query(SystemStatus).filter_by(task_name="incremental_ingestion").first()
-    if not clean and status and status.status == "running":
-        return {"status": "error", "message": "Ya hay una ingesta en curso."}
+    # Si acabamos de hacer clean, confiamos en que ya no hay nada corriendo
+    if not clean:
+        status = db.query(SystemStatus).filter_by(task_name="incremental_ingestion").first()
+        if status and status.status == "running":
+            return {"status": "error", "message": "Ya hay una ingesta en curso."}
     
     if clean:
-        # 3. Limpiar logs y status
+        # 3. Limpiar logs y resetear estados en la base de datos
         cleanup_for_new_ingestion(db, clear_status=True)
-        # 4. Borrar checkpoints incrementales
+        # 4. Borrar checkpoints
         CheckpointManager().clear()
         db.commit()
         
-        # Recargar status tras limpieza
-        status = None
-    
-    # Reiniciar estado
+    # Asegurar que tenemos un registro de estado limpio
+    status = db.query(SystemStatus).filter_by(task_name="incremental_ingestion").first()
     if not status:
         status = SystemStatus(task_name="incremental_ingestion")
         db.add(status)
