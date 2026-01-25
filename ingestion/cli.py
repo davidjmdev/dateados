@@ -146,15 +146,13 @@ def run_full_ingestion(start_season: str, end_season: str, resume: bool):
         sys.exit(1)
 
 
-def run_incremental_ingestion(limit_seasons: int | None = None, resume: bool = False):
-    """Ejecuta ingesta incremental paralela."""
-    # CAMBIO: Usar configuración para decidir si limpiar logs
-    # Si estamos reanudando, NUNCA limpiamos los logs ni el estado
-    if not resume and CLEAR_LOGS_ON_INGESTION_START:
+def run_incremental_ingestion(limit_seasons: int | None = None):
+    """Ejecuta ingesta incremental paralela con detección de brechas."""
+    if CLEAR_LOGS_ON_INGESTION_START:
         clear_logs()
         
     logger.info("=" * 80)
-    logger.info(f"INICIANDO INGESTA INCREMENTAL (PARALELA, RESUME={resume})")
+    logger.info("INICIANDO INGESTA INCREMENTAL (PARALELA)")
     logger.info("=" * 80)
     
     api_client = NBAApiClient()
@@ -162,7 +160,7 @@ def run_incremental_ingestion(limit_seasons: int | None = None, resume: bool = F
     
     try:
         incremental = IncrementalIngestion(api_client)
-        incremental.run(limit_seasons, reporter=reporter, resume=resume)
+        incremental.run(limit_seasons, reporter=reporter)
         
         logger.info("✅ Ingesta incremental finalizada con éxito.")
         
@@ -280,7 +278,7 @@ Ejemplos de uso:
             run_full_ingestion(start_season, end_season, args.resume)
             
         elif args.mode == 'incremental':
-            run_incremental_ingestion(args.limit_seasons, args.resume)
+            run_incremental_ingestion(args.limit_seasons)
 
     except KeyboardInterrupt:
         # Ya manejado por signal_handler

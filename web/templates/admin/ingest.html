@@ -104,7 +104,8 @@
                     document.getElementById('progress-section').classList.remove('hidden');
                     updateBadge('running');
                     // Limpiar consola al iniciar nueva
-                    document.getElementById('log-console').innerHTML = `<p class="text-blue-400 font-bold">>> Iniciando ${clean ? 'reinicio' : 'nueva sesión'} de ingesta...</p>`;
+                    const consoleMsg = clean ? '>> Deteniendo procesos anteriores y reiniciando...' : '>> Iniciando nueva sesión de ingesta...';
+                    document.getElementById('log-console').innerHTML = `<p class="text-blue-400 font-bold">${consoleMsg}</p>`;
                     if (clean) lastLogId = 0;
                     startPolling();
                 } else {

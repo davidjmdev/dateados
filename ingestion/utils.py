@@ -294,17 +294,20 @@ class ProgressReporter:
         
         return " | ".join(msg_parts) if msg_parts else "En progreso..."
 
-    def update(self, progress: int, message: str, status: str = "running"):
+    def update(self, progress: Optional[int], message: str, status: str = "running"):
         """Actualiza el estado en la base de datos.
         
         Args:
-            progress: Porcentaje de progreso (0-100)
+            progress: Porcentaje de progreso (0-100) o None para mantener el actual
             message: Mensaje descriptivo
             status: Estado de la tarea (running, completed, failed)
         """
         from ingestion.log_config import PROGRESS_LOG_EVERY_N_SECONDS
         
-        self.current_progress = progress
+        if progress is not None:
+            self.current_progress = progress
+        
+        display_progress = self.current_progress
         self.last_message = message
         
         # Control inteligente de logging: solo loguear si han pasado >N segundos
@@ -312,14 +315,14 @@ class ProgressReporter:
         now = time.time()
         should_log = (now - self.last_log_time) >= PROGRESS_LOG_EVERY_N_SECONDS
         
-        if should_log or progress >= 100 or status != "running":
+        if should_log or display_progress >= 100 or status != "running":
             elapsed = int(now - self.start_time)
             if elapsed > 60:
                 elapsed_str = f"{elapsed//60}m{elapsed%60}s"
             else:
                 elapsed_str = f"{elapsed}s"
             
-            logger.info(f"[{self.task_name}] {progress}% - {message} (Tiempo: {elapsed_str})")
+            logger.info(f"[{self.task_name}] {display_progress}% - {message} (Tiempo: {elapsed_str})")
             self.last_log_time = now
         
         # Actualizar SystemStatus SIEMPRE (esto es lo que ve el monitor en tiempo real)
@@ -335,7 +338,7 @@ class ProgressReporter:
                     is_new = True
                 
                 task.status = status
-                task.progress = progress
+                task.progress = display_progress
                 task.message = message
                 
                 # CRÍTICO: Solo establecer last_run al crear la tarea (marca el inicio)

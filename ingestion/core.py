@@ -263,12 +263,16 @@ class GameIngestion:
             game = session.query(Game).filter(Game.id == game_id).first()
             game_exists = game is not None
             
+            # Obtener marcadores de forma segura
+            h_score = safe_int(data['homeTeam'].get('score', 0), default=0)
+            a_score = safe_int(data['awayTeam'].get('score', 0), default=0)
+            
             if not game_exists:
                 game = Game(
                     id=game_id, date=game_date, season=season, status=data.get('gameStatus'),
                     home_team_id=home_team_id, away_team_id=away_team_id,
-                    home_score=data['homeTeam']['score'], away_score=data['awayTeam']['score'],
-                    winner_team_id=home_team_id if data['homeTeam']['score'] > data['awayTeam']['score'] else away_team_id,
+                    home_score=h_score, away_score=a_score,
+                    winner_team_id=home_team_id if h_score > a_score else away_team_id,
                     rs=is_rs, po=is_po, pi=is_pi, ist=actual_ist, 
                     quarter_scores=quarter_scores
                 )
@@ -276,9 +280,9 @@ class GameIngestion:
             else:
                 game.date = game_date # Actualizar fecha por si cambió (UTC -> Local)
                 game.status = data.get('gameStatus')
-                game.home_score = data['homeTeam']['score']
-                game.away_score = data['awayTeam']['score']
-                game.winner_team_id = home_team_id if game.home_score > game.away_score else away_team_id
+                game.home_score = h_score
+                game.away_score = a_score
+                game.winner_team_id = home_team_id if h_score > a_score else away_team_id
                 game.quarter_scores = quarter_scores
                 # Actualizar flags de tipo siempre (la API manda)
                 game.rs = is_rs
@@ -769,10 +773,10 @@ class IncrementalIngestion(BaseIngestion):
         super().__init__(api_client, checkpoint_mgr)
         self.skip_outliers = skip_outliers
     
-    def run(self, limit_seasons: Optional[int] = None, reporter: Optional[ProgressReporter] = None, resume: bool = False):
-        """Ejecuta la sincronización incremental."""
-        limit_text = f"últimas {limit_seasons} temporadas" if limit_seasons else "hasta encontrar procesado"
-        logger.info(f"Iniciando ingesta incremental ({limit_text}, resume={resume})...")
+    def run(self, limit_seasons: Optional[int] = None, reporter: Optional[ProgressReporter] = None):
+        """Ejecuta la sincronización incremental usando detección de brechas."""
+        limit_text = f"últimas {limit_seasons} temporadas" if limit_seasons else "hasta encontrar historial"
+        logger.info(f"Iniciando ingesta incremental ({limit_text})...")
         if reporter: reporter.update(0, "Iniciando ingesta incremental...")
         
         session = get_session()
@@ -784,42 +788,25 @@ class IncrementalIngestion(BaseIngestion):
             all_seasons = sorted(get_all_seasons(), reverse=True)
             seasons_to_process = all_seasons[:limit_seasons] if limit_seasons else all_seasons
             
-            # Cargar checkpoint si aplica
-            checkpoint = self.checkpoints.load_checkpoint() if resume else None
-            resume_season = checkpoint.get('season') if checkpoint else None
-            resume_game_id = checkpoint.get('game_id') if checkpoint else None
-
             new_seasons = set()
             new_game_ids = []
             
             for i, season in enumerate(seasons_to_process):
-                # Si estamos reanudando, saltar temporadas hasta llegar a la del checkpoint
-                if resume_season and season > resume_season:
-                    continue
-
-                msg = f"Procesando temporada {season}..."
+                msg = f"Escaneando temporada {season}..."
                 logger.info(msg)
                 if reporter: reporter.update(5 + int((i / len(seasons_to_process)) * 60), msg)
 
-                # Pasar el game_id de reanudación solo para la temporada del checkpoint
-                current_resume_id = resume_game_id if season == resume_season else None
-                
-                stop, processed_ids = self._process_incremental_season(session, season, current_resume_id, reporter=reporter)
+                # Procesar la temporada con la nueva lógica de brechas
+                gap_closed, processed_ids = self._process_incremental_season(session, season, reporter=reporter)
                 
                 if processed_ids:
                     new_seasons.add(season)
                     new_game_ids.extend(processed_ids)
                 
-                if stop:
-                    logger.info("Detectado partido ya finalizado. Deteniendo.")
+                # Si hemos encontrado y cerrado la brecha de datos, terminamos
+                if gap_closed:
+                    logger.info(f"Brecha de datos cerrada en temporada {season}. Sincronización completa.")
                     break
-                
-                # Limpiar resume_season tras procesarla para que las siguientes sigan flujo normal
-                resume_season = None
-                resume_game_id = None
-            
-            # Al finalizar con éxito, limpiar checkpoint
-            self.checkpoints.clear()
             
             # 3. Regenerar tablas derivadas
             if new_seasons:
@@ -846,42 +833,57 @@ class IncrementalIngestion(BaseIngestion):
             session.close()
             clear_memory()
 
-    def _process_incremental_season(self, session, season, resume_game_id=None, reporter=None):
-        """Procesa una temporada incrementalmente."""
+    def _process_incremental_season(self, session, season, reporter=None):
+        """Procesa una temporada incrementalmente detectando brechas de datos."""
         games_data = self.api.fetch_season_games(season)
         if not games_data: return False, []
         
-        # Si estamos reanudando, buscar el índice del último partido procesado
-        start_idx = 0
-        if resume_game_id:
-            for idx, gd in enumerate(games_data):
-                if gd['game_id'] == resume_game_id:
-                    start_idx = idx + 1 # Empezar en el siguiente
-                    break
-            logger.info(f"Reanudando {season} desde el partido tras {resume_game_id} (indice {start_idx})")
-
-        processed_ids = []
+        # FASE 1: Escaneo de brecha (Nuevo -> Viejo)
+        # Identificamos qué partidos faltan o están incompletos
+        gap_games = []
+        consecutive_existing = 0
         today_str = date.today().isoformat()
         
-        for j in range(start_idx, len(games_data)):
-            gd = games_data[j]
-            gid, local_date = gd['game_id'], gd['game_date']
-            
-            # Verificar si ya existe
-            # NOTA: Solo aplicamos la parada por "ya existente" si NO estamos reanudando
-            # Si estamos reanudando, queremos completar lo que faltaba de esta temporada
+        logger.info(f"Escaneando {len(games_data)} partidos en busca de novedades...")
+        
+        for gd in games_data:
+            gid = gd['game_id']
+            # Comprobar si existe y está finalizado en nuestra DB
             existing = session.query(Game.status, Game.home_score, Game.date).filter(Game.id == gid).first()
             
-            # Condición de parada: partido ya en DB y finalizado
-            is_finished = existing and (existing.status == 3 or (existing.status == 1 and existing.home_score > 0 and str(existing.date) < today_str))
+            # Un partido se considera "completo" si status es 3 (finalizado oficial)
+            # o si es status 1 pero tiene marcador y es de fecha pasada (error común de la API)
+            # Usamos (existing.home_score or 0) para evitar errores si el marcador es NULL (partidos en juego)
+            is_finished = False
+            if existing:
+                home_score = existing.home_score or 0
+                is_finished = (existing.status == 3 or (existing.status == 1 and home_score > 0 and str(existing.date) < today_str))
             
-            if is_finished and not resume_game_id:
-                if existing.date != local_date:
-                    session.query(Game).filter(Game.id == gid).update({"date": local_date})
-                    session.commit()
-                return True, processed_ids
-            
-            # Si el partido existe pero no estaba terminado o estamos forzando reanudación, lo procesamos
+            if not is_finished:
+                # ¡Es una novedad! (Partido nuevo o que estaba pendiente de terminar)
+                gap_games.append(gd)
+                consecutive_existing = 0
+            else:
+                # Ya lo tenemos. Si encontramos 3 seguidos, asumimos que la brecha se ha cerrado.
+                consecutive_existing += 1
+                if consecutive_existing >= 3:
+                    break
+
+        if not gap_games:
+            return True, [] # Brecha cerrada (estamos al día)
+
+        # FASE 2: Procesamiento de brecha (Viejo -> Nuevo)
+        # Le damos la vuelta para que, si falla, al menos los más antiguos se hayan guardado
+        gap_games.reverse()
+        processed_ids = []
+        
+        logger.info(f"Detectada brecha de {len(gap_games)} partidos. Procesando del más antiguo al más moderno...")
+        if reporter: 
+            reporter.set_total(len(gap_games))
+            reporter.update(None, f"Procesando {len(gap_games)} partidos nuevos...")
+
+        for j, gd in enumerate(gap_games):
+            gid = gd['game_id']
             try:
                 res = self.game_ingestion.ingest_game(
                     session, gid,
@@ -891,21 +893,21 @@ class IncrementalIngestion(BaseIngestion):
                     is_ist=gd.get('is_ist', False),
                     season_fallback=season
                 )
-                if res is True: processed_ids.append(gid)
-                elif res is False: raise FatalIngestionError(f"Fallo en partido incremental {gid}")
+                if res is True: 
+                    processed_ids.append(gid)
+                    if reporter: reporter.increment(f"Partido {gid[:8]}", delta=1)
+                elif res is False: 
+                    raise FatalIngestionError(f"Fallo en partido incremental {gid}")
                 
-                # Checkpoint cada 10 partidos en modo incremental
-                if j > 0 and j % 10 == 0:
-                    self.checkpoints.save_games_checkpoint(season, gid)
-                    if reporter: reporter.increment(f"Partido {gid[:8]}", delta=0) # Solo para actualizar logs/ETA
-                
-                if j % 5 == 0: clear_memory()
+                if j % 10 == 0: clear_memory()
                 time.sleep(API_DELAY)
 
             except FatalIngestionError:
-                # Guardar checkpoint exacto antes de lanzar el error fatal
-                self.checkpoints.save_games_checkpoint(season, gid)
+                # No necesitamos guardar checkpoints externos porque la DB ya tiene los partidos "viejos" guardados
+                logger.error(f"Error fatal en brecha. Procesados {len(processed_ids)}/{len(gap_games)} partidos.")
                 raise
             
-        return False, processed_ids
+        # Retornamos True si el escaneo encontró el final de la brecha (consecutive_existing >= 3)
+        # o False si revisamos toda la temporada y no encontramos el historial (hay que mirar la anterior)
+        return consecutive_existing >= 3, processed_ids
 
