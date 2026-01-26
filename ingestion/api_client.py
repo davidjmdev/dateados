@@ -156,6 +156,7 @@ class NBAApiClient:
         # Consolidar flags por GAME_ID
         consolidated = combined_df.groupby('GAME_ID').agg({
             'GAME_DATE': 'first',
+            'WL': 'first', # Win/Loss solo se rellena cuando el partido ha terminado
             'is_rs': 'max',
             'is_po': 'max',
             'is_pi': 'max'
@@ -188,13 +189,20 @@ class NBAApiClient:
                             is_ist = True
                     except ValueError: pass
 
+            # La columna WL (Win/Loss) solo tiene valor si el partido ha terminado oficialmente.
+            wl_val = row['WL']
+            api_finished = False
+            if isinstance(wl_val, str) and wl_val.strip():
+                api_finished = wl_val.strip().upper() in ['W', 'L']
+
             games.append({
                 'game_id': gid,
                 'game_date': parse_date(row['GAME_DATE']),
                 'is_rs': bool(row['is_rs']),
                 'is_po': bool(row['is_po']),
                 'is_pi': bool(row['is_pi']),
-                'is_ist': is_ist
+                'is_ist': is_ist,
+                'is_finished': api_finished
             })
         
         logger.info(f"Encontrados {len(games)} partidos consolidados para {season}")

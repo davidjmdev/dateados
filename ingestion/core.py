@@ -813,15 +813,21 @@ class IncrementalIngestion(BaseIngestion):
                 if reporter: reporter.update(70, "Recalculando estadísticas agregadas...")
                 self.derived.regenerate_for_seasons(session, list(new_seasons))
             
-            # 4. Post-procesamiento
-            self.sync_post_process(session, reporter, active_only_awards=True, prefix="incremental_")
+            # 4. Post-procesamiento y Outliers (SOLO SI HAY NOVEDADES REALES)
+            if new_game_ids:
+                # Actualizar premios y biografías solo si ha habido partidos nuevos.
+                self.sync_post_process(session, reporter, active_only_awards=True, prefix="incremental_")
+                
+                # Outliers
+                if not self.skip_outliers:
+                    self.run_outlier_detection(session, new_game_ids, reporter)
+                
+                if reporter: reporter.complete("Base de datos actualizada.")
+            else:
+                logger.info("Base de datos ya estaba al día. No se detectaron partidos terminados nuevos.")
+                if reporter: reporter.complete("Base de datos al día.")
             
-            # 5. Outliers
-            if not self.skip_outliers:
-                self.run_outlier_detection(session, new_game_ids, reporter)
-            
-            if reporter: reporter.complete("Base de datos actualizada.")
-            logger.info("✅ Ingesta incremental finalizada")
+            return # <--- Fin del proceso (Ahorra tiempo de limpieza innecesaria)
             
         except FatalIngestionError:
             raise
@@ -848,26 +854,33 @@ class IncrementalIngestion(BaseIngestion):
         
         for gd in games_data:
             gid = gd['game_id']
+            api_finished = gd.get('is_finished', False)
+
             # Comprobar si existe y está finalizado en nuestra DB
             existing = session.query(Game.status, Game.home_score, Game.date).filter(Game.id == gid).first()
             
-            # Un partido se considera "completo" si status es 3 (finalizado oficial)
+            # Un partido se considera "completo" en nuestra DB si status es 3 (finalizado oficial)
             # o si es status 1 pero tiene marcador y es de fecha pasada (error común de la API)
-            # Usamos (existing.home_score or 0) para evitar errores si el marcador es NULL (partidos en juego)
-            is_finished = False
+            db_finished = False
             if existing:
                 home_score = existing.home_score or 0
-                is_finished = (existing.status == 3 or (existing.status == 1 and home_score > 0 and str(existing.date) < today_str))
+                db_finished = (existing.status == 3 or (existing.status == 1 and home_score > 0 and str(existing.date) < today_str))
             
-            if not is_finished:
-                # ¡Es una novedad! (Partido nuevo o que estaba pendiente de terminar)
+            if api_finished and not db_finished:
+                # ¡Es una novedad real! (Terminado en la API pero no completo en nuestra DB)
+                logger.info(f"  + Novedad detectada: Partido {gid} (API dice terminado, DB incompleto)")
                 gap_games.append(gd)
                 consecutive_existing = 0
-            else:
-                # Ya lo tenemos. Si encontramos 3 seguidos, asumimos que la brecha se ha cerrado.
+            elif db_finished:
+                # Ya lo tenemos completo.
                 consecutive_existing += 1
                 if consecutive_existing >= 3:
+                    logger.debug(f"  - Brecha cerrada en partido {gid}")
                     break
+            elif not api_finished:
+                # El partido está en juego o programado según la API.
+                # Lo ignoramos pero lo logueamos a nivel debug para saber qué pasa.
+                logger.debug(f"  - Saltando {gid}: Partido en directo o futuro según API (sin WL)")
 
         if not gap_games:
             return True, [] # Brecha cerrada (estamos al día)
