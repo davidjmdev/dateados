@@ -14,7 +14,7 @@ class TestFetchWithRetry:
     
     def test_success_first_try(self):
         """Exito en el primer intento."""
-        from ingestion.utils import fetch_with_retry
+        from ingestion.api_common import fetch_with_retry
         
         mock_func = MagicMock(return_value="success")
         result = fetch_with_retry(mock_func, max_retries=3)
@@ -24,7 +24,7 @@ class TestFetchWithRetry:
     
     def test_success_after_retry(self):
         """Exito despues de reintentos."""
-        from ingestion.utils import fetch_with_retry
+        from ingestion.api_common import fetch_with_retry
         
         # Falla 2 veces, exito en la tercera
         mock_func = MagicMock(side_effect=[
@@ -33,7 +33,7 @@ class TestFetchWithRetry:
             "success"
         ])
         
-        with patch('ingestion.utils.time.sleep'):
+        with patch('ingestion.api_common.time.sleep'):
             result = fetch_with_retry(mock_func, max_retries=3)
         
         assert result == "success"
@@ -41,11 +41,11 @@ class TestFetchWithRetry:
     
     def test_failure_all_retries(self):
         """Fallo en todos los reintentos lanza FatalIngestionError si fatal=True."""
-        from ingestion.utils import fetch_with_retry, FatalIngestionError
+        from ingestion.api_common import fetch_with_retry, FatalIngestionError
         
         mock_func = MagicMock(side_effect=Exception("Persistent error"))
         
-        with patch('ingestion.utils.time.sleep'):
+        with patch('ingestion.api_common.time.sleep'):
             with pytest.raises(FatalIngestionError):
                 fetch_with_retry(mock_func, max_retries=3, fatal=True)
         
@@ -53,11 +53,11 @@ class TestFetchWithRetry:
 
     def test_failure_no_fatal(self):
         """Fallo en todos los reintentos retorna None si fatal=False."""
-        from ingestion.utils import fetch_with_retry
+        from ingestion.api_common import fetch_with_retry
         
         mock_func = MagicMock(side_effect=Exception("Persistent error"))
         
-        with patch('ingestion.utils.time.sleep'):
+        with patch('ingestion.api_common.time.sleep'):
             result = fetch_with_retry(mock_func, max_retries=3, fatal=False)
         
         assert result is None
@@ -65,7 +65,7 @@ class TestFetchWithRetry:
     
     def test_no_retry_on_resultset_error(self):
         """No reintenta si el error indica datos no disponibles (resultSet empty)."""
-        from ingestion.utils import fetch_with_retry
+        from ingestion.api_common import fetch_with_retry
         
         mock_func = MagicMock(side_effect=Exception("resultSet is empty"))
         
@@ -81,7 +81,7 @@ class TestIsValidTeamId:
     
     def test_valid_standard_range(self):
         """ID en el rango estandar de equipos NBA."""
-        from ingestion.utils import is_valid_team_id
+        from db.services import is_valid_team_id
         
         # Lakers ID
         assert is_valid_team_id(1610612747) is True
@@ -90,22 +90,22 @@ class TestIsValidTeamId:
     
     def test_invalid_id(self):
         """ID fuera del rango conocido."""
-        from ingestion.utils import is_valid_team_id
+        from db.services import is_valid_team_id
         
         assert is_valid_team_id(12345) is False
     
     def test_special_event_team_allowed(self):
         """IDs de equipos de eventos especiales cuando esta permitido."""
-        from ingestion.utils import is_valid_team_id
-        from ingestion.config import SPECIAL_EVENT_TEAM_IDS
+        from db.services import is_valid_team_id
+        from db.constants import SPECIAL_EVENT_TEAM_IDS
         
         for team_id in SPECIAL_EVENT_TEAM_IDS:
             assert is_valid_team_id(team_id, allow_special_events=True) is True
     
     def test_special_event_team_not_allowed(self):
         """IDs de equipos de eventos especiales cuando no esta permitido."""
-        from ingestion.utils import is_valid_team_id
-        from ingestion.config import SPECIAL_EVENT_TEAM_IDS
+        from db.services import is_valid_team_id
+        from db.constants import SPECIAL_EVENT_TEAM_IDS
         
         for team_id in SPECIAL_EVENT_TEAM_IDS:
             # Sin allow_special_events, deberia fallar

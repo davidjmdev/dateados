@@ -10,7 +10,7 @@ from ingestion.config import (
     LOG_FORMAT, LOG_DATE_FORMAT, 
     WORKER_STAGGER_MIN, WORKER_STAGGER_MAX
 )
-from ingestion.utils import FatalIngestionError
+from ingestion.api_common import FatalIngestionError
 from db.utils.logging_handler import SQLAlchemyHandler
 
 logger = logging.getLogger(__name__)

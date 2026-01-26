@@ -24,10 +24,11 @@ from db import init_db
 from db.connection import get_session
 from ingestion.api_client import NBAApiClient
 from ingestion.checkpoints import CheckpointManager
-from ingestion.core import FullIngestion, IncrementalIngestion
+from ingestion.strategies import FullIngestion, IncrementalIngestion
 from ingestion.restart import restart_process
+from ingestion.api_common import FatalIngestionError
 from ingestion.utils import (
-    FatalIngestionError, normalize_season, 
+    normalize_season, 
     ProgressReporter
 )
 from ingestion.config import LOG_FORMAT, LOG_DATE_FORMAT

@@ -21,7 +21,7 @@ from nba_api.stats.endpoints import (
 )
 
 from ingestion.config import API_TIMEOUT
-from ingestion.utils import fetch_with_retry, FatalIngestionError
+from ingestion.api_common import fetch_with_retry, FatalIngestionError
 
 logger = logging.getLogger(__name__)
 

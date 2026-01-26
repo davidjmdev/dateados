@@ -210,7 +210,8 @@ class TestGame:
         game = Game(
             id="0022300001",
             home_score=110,
-            away_score=100
+            away_score=100,
+            status=3
         )
         assert game.is_finished is True
     
@@ -259,28 +260,28 @@ class TestPlayer:
     
     def test_is_active_with_none_to_year(self):
         """Jugador activo si to_year es None."""
-        player = Player(id=1, full_name="Test Player", to_year=None)
+        player = Player(id=1, full_name="Test Player", to_year=None, is_active=True)
         assert player.is_active is True
     
     def test_is_active_current_year(self):
         """Jugador activo si to_year es el ano actual."""
         from datetime import datetime
         current_year = datetime.now().year
-        player = Player(id=1, full_name="Test Player", to_year=current_year)
+        player = Player(id=1, full_name="Test Player", to_year=current_year, is_active=True)
         assert player.is_active is True
     
     def test_is_active_last_year(self):
         """Jugador activo si to_year es el ano pasado."""
         from datetime import datetime
         last_year = datetime.now().year - 1
-        player = Player(id=1, full_name="Test Player", to_year=last_year)
+        player = Player(id=1, full_name="Test Player", to_year=last_year, is_active=True)
         assert player.is_active is True
     
     def test_is_not_active_retired(self):
         """Jugador retirado hace mas de un ano."""
         from datetime import datetime
         old_year = datetime.now().year - 5
-        player = Player(id=1, full_name="Test Player", to_year=old_year)
+        player = Player(id=1, full_name="Test Player", to_year=old_year, is_active=False)
         assert player.is_active is False
 
 

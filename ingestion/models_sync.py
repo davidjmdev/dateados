@@ -21,9 +21,10 @@ from db.models import Player, Team, PlayerTeamSeason, PlayerAward, Game, PlayerG
 from ingestion.api_client import NBAApiClient
 from ingestion.checkpoints import CheckpointManager
 from ingestion.config import API_DELAY
+from ingestion.api_common import FatalIngestionError
 from ingestion.utils import (
     safe_int, safe_float, safe_int_or_none, parse_date, 
-    normalize_season, FatalIngestionError
+    normalize_season
 )
 
 logger = logging.getLogger(__name__)

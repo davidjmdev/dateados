@@ -2,51 +2,13 @@ import logging
 import time
 from datetime import date, datetime, timedelta
 from typing import Optional, Dict, Any, List, Set, Tuple
-from sqlalchemy import and_
-from sqlalchemy.orm import Session
 from dateutil import parser as date_parser
 
-from db.models import Team, Player
 from ingestion.config import (
-    API_DELAY, MAX_RETRIES, API_TIMEOUT, 
-    SPECIAL_EVENT_TEAM_IDS
+    API_DELAY, API_TIMEOUT 
 )
 
 logger = logging.getLogger(__name__)
-
-
-class FatalIngestionError(Exception):
-    """Excepción para errores fatales que requieren reinicio del proceso."""
-    pass
-
-
-def fetch_with_retry(api_call_func, max_retries=MAX_RETRIES, timeout=API_TIMEOUT, error_context="", fatal=True):
-    """Ejecuta una llamada API con reintentos simplificados."""
-    for attempt in range(max_retries):
-        try:
-            result = api_call_func()
-            time.sleep(API_DELAY)
-            return result
-        except Exception as e:
-            error_msg = str(e)
-            
-            # Si el error indica que no hay datos (resultSet vacío), no reintentamos.
-            # Esto ahorra mucho tiempo en jugadores antiguos sin biografía.
-            if 'resultSet' in error_msg:
-                logger.warning(f"Datos no disponibles en {error_context}: {error_msg}")
-                return None
-
-            logger.warning(
-                f"Error en {error_context} (intento {attempt + 1}/{max_retries}): {error_msg}. "
-                f"Esperando {timeout}s para reintentar..."
-            )
-            time.sleep(timeout)
-            if attempt == max_retries - 1:
-                logger.error(f"Fallo persistente en {error_context} tras {max_retries} intentos.")
-                if fatal:
-                    raise FatalIngestionError(f"Agotados reintentos en {error_context}: {error_msg}")
-                return None
-    return None
 
 
 def normalize_season(season: str) -> str:
@@ -98,92 +60,6 @@ def convert_minutes_to_interval(min_str: str) -> timedelta:
             return timedelta(seconds=int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2]))
     except: pass
     return timedelta(seconds=0)
-
-
-def is_valid_team_id(team_id: int, allow_special_events: bool = False, session: Optional[Session] = None) -> bool:
-    """Verifica si un team_id es válido."""
-    if allow_special_events and team_id in SPECIAL_EVENT_TEAM_IDS: return True
-    if session and session.query(Team).filter(Team.id == team_id).first(): return True
-    try:
-        from nba_api.stats.static import teams as nba_teams_static
-        if any(t['id'] == team_id for t in nba_teams_static.get_teams()): return True
-    except: pass
-    return 1610612737 <= team_id <= 1610612766
-
-
-def get_or_create_team(session: Session, team_id: int, team_data: Optional[Dict[str, Any]] = None) -> Team:
-    """Obtiene un equipo de la BD o lo crea si no existe."""
-    team = session.query(Team).filter(Team.id == team_id).first()
-    if team:
-        if team_data:
-            for k, v in team_data.items():
-                if v and hasattr(team, k): setattr(team, k, v)
-        return team
-    
-    # Intento de creación atómico para evitar race conditions
-    savepoint = session.begin_nested()
-    try:
-        final_data = team_data.copy() if team_data else {}
-        if not final_data.get('full_name') or not final_data.get('abbreviation'):
-            try:
-                from nba_api.stats.static import teams as nba_teams_static
-                for t in nba_teams_static.get_teams():
-                    if t['id'] == team_id:
-                        if not final_data.get('full_name'): final_data['full_name'] = t['full_name']
-                        if not final_data.get('abbreviation'): final_data['abbreviation'] = t['abbreviation']
-                        if not final_data.get('city'): final_data['city'] = t['city']
-                        if not final_data.get('nickname'): final_data['nickname'] = t['nickname']
-                        break
-            except: pass
-
-        if not final_data.get('abbreviation'):
-            final_data['abbreviation'] = f"TM_{team_id}"
-        if not final_data.get('full_name'):
-            final_data['full_name'] = f"Team {team_id}"
-
-        new_team = Team(id=team_id, **final_data)
-        session.add(new_team)
-        session.flush()
-        savepoint.commit()
-        return new_team
-    except Exception:
-        savepoint.rollback()
-        # Si falló, es que otro worker lo creó justo antes
-        return session.query(Team).filter(Team.id == team_id).first()
-
-
-def get_or_create_player(session: Session, player_id: int, player_data: Optional[Dict[str, Any]] = None) -> Player:
-    """Obtiene un jugador de la BD o lo crea si no existe."""
-    player = session.query(Player).filter(Player.id == player_id).first()
-    
-    if player:
-        if player_data:
-            for k, v in player_data.items():
-                if v is not None and hasattr(player, k):
-                    setattr(player, k, v)
-        return player
-
-    # Intento de creación atómico
-    savepoint = session.begin_nested()
-    try:
-        # Creación rápida sin llamada a API de biografía (se delega a la fase final)
-        name = player_data.get('full_name') if player_data else f'Player {player_id}'
-        new_player = Player(id=player_id, full_name=name)
-        
-        # Si vienen datos en player_data (como jersey o posición del boxscore), los usamos
-        if player_data:
-            for k in ['position', 'jersey']:
-                if k in player_data and player_data[k] is not None:
-                    setattr(new_player, k, player_data[k])
-                    
-        session.add(new_player)
-        session.flush()
-        savepoint.commit()
-        return new_player
-    except Exception:
-        savepoint.rollback()
-        # Si falló, es que otro worker lo creó justo antes
-        return session.query(Player).filter(Player.id == player_id).first()
 
 
 def parse_date(date_str: Any) -> Optional[date]:
