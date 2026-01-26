@@ -5,8 +5,7 @@ from pathlib import Path
 
 import logging
 import sys
-from ingestion.config import LOG_FORMAT, LOG_DATE_FORMAT
-from db.utils.logging_handler import SQLAlchemyHandler
+from db.logging import setup_logging
 from db.connection import init_db
 
 # Asegurar que las tablas existen antes de configurar logging
@@ -16,15 +15,7 @@ except Exception as e:
     print(f"Error inicializando DB: {e}", file=sys.stderr)
 
 # Configurar logging global (tanto consola como archivo de DB)
-logging.basicConfig(
-    level=logging.INFO,
-    format=LOG_FORMAT,
-    datefmt=LOG_DATE_FORMAT,
-    handlers=[
-        SQLAlchemyHandler(),
-        logging.StreamHandler(sys.stdout)
-    ]
-)
+setup_logging(context="web")
 
 app = FastAPI(title="NBA Stats Web")
 

@@ -1,11 +1,11 @@
 """CLI para ejecutar ingestas con reinicio automático.
 
 Este módulo proporciona la interfaz de línea de comandos para ejecutar
-ingestas de datos NBA con solo 2 modos:
-- full: Ingesta histórica completa con checkpoints
-- incremental: Últimos partidos
+ingestas de datos NBA utilizando una estrategia inteligente unificada.
 
-Incluye manejo automático de errores fatales con reinicio del proceso.
+Modos:
+- smart: Ingesta inteligente (por defecto). Detecta huecos y carga incremental o masiva según sea necesario.
+- full: Fuerza una ingesta completa histórica (útil para reparaciones).
 """
 
 import argparse
@@ -24,18 +24,15 @@ from db import init_db
 from db.connection import get_session
 from ingestion.api_client import NBAApiClient
 from ingestion.checkpoints import CheckpointManager
-from ingestion.strategies import FullIngestion, IncrementalIngestion
+from ingestion.strategies import SmartIngestion, FullIngestion
 from ingestion.restart import restart_process
 from ingestion.api_common import FatalIngestionError
 from ingestion.utils import (
     normalize_season, 
     ProgressReporter
 )
-from ingestion.config import LOG_FORMAT, LOG_DATE_FORMAT
-from ingestion.log_config import LOG_LEVEL, CLEAR_LOGS_ON_INGESTION_START
-from db.utils.logging_handler import SQLAlchemyHandler
-from db.utils.log_cleanup import cleanup_for_new_ingestion
-from db.models import LogEntry, SystemStatus
+from db.logging import setup_logging, cleanup_for_new_ingestion, CLEAR_LOGS_ON_INGESTION_START, log_header, log_success
+from db.models import SystemStatus
 from sqlalchemy import delete
 
 def signal_handler(sig, frame):
@@ -45,25 +42,17 @@ def signal_handler(sig, frame):
     if mp.current_process().name != 'MainProcess':
         return
 
-    print("\n" + "!" * 80)
-    print("⚠️  INTERRUPCIÓN DETECTADA (Ctrl+C)")
-    print("🛑 Cerrando el sistema de forma inmediata...")
-    print("!" * 80)
+    log_header("INTERRUPCIÓN DETECTADA (Ctrl+C)", "dateados.cli")
     
     # 1. Matar a todos los hijos inmediatamente
     for child in mp.active_children():
         child.terminate()
     
     # 2. Limpiar estados del monitor para que no se queden en "running"
-    from db.connection import get_session
-    from db.models import SystemStatus
-    from sqlalchemy import delete
-    
     session = get_session()
     try:
         session.execute(delete(SystemStatus))
         session.commit()
-        print("🧹 Monitor de estados limpiado.")
     except:
         pass
     finally:
@@ -75,33 +64,19 @@ def signal_handler(sig, frame):
 # Registrar manejador de señales
 signal.signal(signal.SIGINT, signal_handler)
 
-# Asegurar que la tabla de logs (y el resto) existe antes de configurar logging
+# Asegurar que la tabla de logs existe
 try:
     init_db()
 except Exception:
     pass
 
-# Configurar logging con nivel dinámico
-log_level = getattr(logging, LOG_LEVEL, logging.INFO)
-
-logging.basicConfig(
-    level=log_level,
-    format=LOG_FORMAT,
-    datefmt=LOG_DATE_FORMAT,
-    handlers=[
-        SQLAlchemyHandler(),
-        logging.StreamHandler(sys.stdout)
-    ]
-)
-
-logger = logging.getLogger(__name__)
+# Configurar logging unificado
+setup_logging(context="cli")
+logger = logging.getLogger("dateados.cli")
 
 
 def clear_logs():
-    """Borra logs y estados de la base de datos para iniciar una nueva ejecución limpia.
-    
-    DEPRECATED: Usar cleanup_for_new_ingestion() del módulo log_cleanup en su lugar.
-    """
+    """Borra logs y estados de la base de datos para iniciar una nueva ejecución limpia."""
     session = get_session()
     try:
         cleanup_for_new_ingestion(session, clear_status=True)
@@ -109,69 +84,21 @@ def clear_logs():
         session.close()
 
 
-def run_full_ingestion(start_season: str, end_season: str, resume: bool):
-    """Ejecuta ingesta histórica completa paralela."""
-    # Limpiar logs si no es una reanudación y está configurado
-    if not resume and CLEAR_LOGS_ON_INGESTION_START:
-        clear_logs()
-        
-    logger.info("=" * 80)
-    logger.info("INICIANDO INGESTA COMPLETA HISTÓRICA (PARALELA)")
-    logger.info("=" * 80)
-    
-    api_client = NBAApiClient()
-    checkpoint_mgr = CheckpointManager()
-    reporter = ProgressReporter("full_ingestion", session_factory=get_session)
-    
-    try:
-        # Cargar checkpoint global si aplica
-        checkpoint = checkpoint_mgr.load_checkpoint() if resume else None
-        
-        # Ejecutar ingesta
-        full_ingestion = FullIngestion(api_client, checkpoint_mgr)
-        full_ingestion.run(start_season, end_season, checkpoint, reporter=reporter)
-        
-        reporter.complete("Ingesta completa finalizada con éxito")
-        
-    except FatalIngestionError as e:
-        logger.error("=" * 80)
-        logger.error("🔴 ERROR FATAL DETECTADO EN PROCESO PRINCIPAL")
-        logger.error("=" * 80)
-        logger.error(f"Error: {e}")
-        logger.error("🔄 Reiniciando proceso en 3 segundos...")
-        logger.error("=" * 80)
-        restart_process()
-        
-    except Exception as e:
-        logger.error(f"❌ Error crítico en proceso principal: {e}", exc_info=True)
-        sys.exit(1)
-
-
-def run_incremental_ingestion(limit_seasons: int | None = None):
-    """Ejecuta ingesta incremental paralela con detección de brechas."""
+def run_smart_ingestion(limit_seasons: int | None = None, skip_outliers: bool = False):
+    """Ejecuta la ingesta inteligente (híbrida incremental/full)."""
     if CLEAR_LOGS_ON_INGESTION_START:
         clear_logs()
         
-    logger.info("=" * 80)
-    logger.info("INICIANDO INGESTA INCREMENTAL (PARALELA)")
-    logger.info("=" * 80)
-    
     api_client = NBAApiClient()
-    reporter = ProgressReporter("incremental_ingestion", session_factory=get_session)
+    reporter = ProgressReporter("smart_ingestion", session_factory=get_session)
     
     try:
-        incremental = IncrementalIngestion(api_client)
-        incremental.run(limit_seasons, reporter=reporter)
-        
-        logger.info("✅ Ingesta incremental finalizada con éxito.")
+        strategy = SmartIngestion(api_client)
+        strategy.run(limit_seasons, skip_outliers=skip_outliers, reporter=reporter)
         
     except FatalIngestionError as e:
-        logger.error("=" * 80)
-        logger.error("🔴 ERROR FATAL DETECTADO EN INGESTA INCREMENTAL")
-        logger.error("=" * 80)
-        logger.error(f"Error: {e}")
+        logger.error(f"🔴 ERROR FATAL: {e}")
         logger.error("🔄 Reiniciando proceso en 3 segundos...")
-        logger.error("=" * 80)
         restart_process()
         
     except Exception as e:
@@ -179,70 +106,94 @@ def run_incremental_ingestion(limit_seasons: int | None = None):
         sys.exit(1)
 
 
+def run_full_ingestion_legacy(start_season: str, end_season: str, resume: bool):
+    """Ejecuta ingesta histórica completa forzada (Legacy/Manual)."""
+    if not resume and CLEAR_LOGS_ON_INGESTION_START:
+        clear_logs()
+        
+    api_client = NBAApiClient()
+    checkpoint_mgr = CheckpointManager()
+    reporter = ProgressReporter("full_ingestion", session_factory=get_session)
+    
+    try:
+        checkpoint = checkpoint_mgr.load_checkpoint() if resume else None
+        
+        full_ingestion = FullIngestion(api_client, checkpoint_mgr)
+        full_ingestion.run(start_season, end_season, checkpoint, reporter=reporter)
+        
+    except FatalIngestionError as e:
+        logger.error(f"🔴 ERROR FATAL: {e}")
+        restart_process()
+    except Exception as e:
+        logger.error(f"❌ Error crítico: {e}", exc_info=True)
+        sys.exit(1)
+
+
 def main():
     """Punto de entrada principal del CLI."""
     try:
         parser = argparse.ArgumentParser(
-            description='Ingesta de datos NBA con reinicio automático',
+            description='Sistema de Ingesta Inteligente NBA',
             formatter_class=argparse.RawDescriptionHelpFormatter,
             epilog="""
 Ejemplos de uso:
 
-  # Ingesta incremental (procesa hasta encontrar partido ya existente)
-  python -m ingestion.cli --mode incremental
+  # Modo Inteligente (Recomendado): Detecta automáticamente qué falta y cómo bajarlo
+  python -m ingestion.cli
 
-  # Ingesta incremental limitada a las últimas 2 temporadas
-  python -m ingestion.cli --mode incremental --limit-seasons 2
+  # Modo Inteligente con límite (ej: solo revisar últimas 2 temporadas)
+  python -m ingestion.cli --limit-seasons 2
 
-  # Ingesta completa desde 1983-84
+  # Modo Full Forzado (Para reparaciones o cargas manuales específicas)
   python -m ingestion.cli --mode full --start-season 1983-84
-
-  # Ingesta completa de temporadas específicas
-  python -m ingestion.cli --mode full --start-season 2020-21 --end-season 2023-24
-
-  # Reanudar ingesta completa desde checkpoint
-  python -m ingestion.cli --mode full --resume
 
   # Inicializar base de datos
   python -m ingestion.cli --init-db
             """
         )
         
-        # Modo de ingesta
+        # Modo de ingesta (ahora opcional, default=smart)
         parser.add_argument(
             '--mode',
             type=str,
-            choices=['full', 'incremental'],
-            help='Modo de ingesta (requerido si no se usa --init-db)'
+            choices=['smart', 'full'],
+            default='smart',
+            help='Modo de ingesta: smart (auto, default) o full (forzado histórico)'
         )
         
-        # Parámetros para modo full
-        parser.add_argument(
-            '--start-season',
-            type=str,
-            default='1983-84',
-            help='Temporada de inicio para modo full (default: 1983-84)'
-        )
-        parser.add_argument(
-            '--end-season',
-            type=str,
-            help='Temporada final para modo full (default: temporada actual)'
-        )
-        parser.add_argument(
-            '--resume',
-            action='store_true',
-            help='Reanudar desde checkpoint (se activa automáticamente tras reinicio)'
-        )
-        
-        # Parámetros para modo incremental
+        # Parámetros comunes/smart
         parser.add_argument(
             '--limit-seasons',
             type=int,
             default=None,
-            help='Límite opcional de temporadas para modo incremental (por defecto: sin límite, procesa hasta encontrar partido existente)'
+            help='(Smart) Número de temporadas hacia atrás a revisar (default: todas)'
         )
         
-        # Otros
+        parser.add_argument(
+            '--skip-outliers',
+            action='store_true',
+            help='(Smart) Saltar detección de outliers al finalizar'
+        )
+
+        # Parámetros legacy full
+        parser.add_argument(
+            '--start-season',
+            type=str,
+            default='1983-84',
+            help='(Full) Temporada de inicio'
+        )
+        parser.add_argument(
+            '--end-season',
+            type=str,
+            help='(Full) Temporada final'
+        )
+        parser.add_argument(
+            '--resume',
+            action='store_true',
+            help='(Full) Reanudar desde checkpoint'
+        )
+        
+        # Init DB
         parser.add_argument(
             '--init-db',
             action='store_true',
@@ -251,22 +202,21 @@ Ejemplos de uso:
         
         args = parser.parse_args()
         
-        # Inicializar BD si se solicita
         if args.init_db:
             logger.info("Inicializando base de datos...")
             init_db()
             logger.info("✅ Base de datos inicializada")
+            # Si solo se pidió init-db y no se especificó un modo explícito (o se usó el default smart),
+            # podríamos parar aquí si el usuario no quería ejecutar.
+            # Pero dado que smart es default, asumimos que si no hay flags extra, solo init.
+            # Mejor criterio: Si solo hay init-db en sys.argv, salimos.
+            if len(sys.argv) == 2 and sys.argv[1] == '--init-db':
+                return
+        
+        if args.mode == 'smart':
+            run_smart_ingestion(args.limit_seasons, args.skip_outliers)
             
-            if not args.mode:
-                return  # Solo inicializar, no ingestar
-        
-        # Validar modo
-        if not args.mode:
-            parser.error("--mode es requerido (usar --help para ver ejemplos)")
-        
-        # Ejecutar según modo
-        if args.mode == 'full':
-            # Calcular end_season si no se proporciona
+        elif args.mode == 'full':
             if not args.end_season:
                 today = date.today()
                 year = today.year if today.month >= 10 else today.year - 1
@@ -275,14 +225,9 @@ Ejemplos de uso:
                 end_season = normalize_season(args.end_season)
             
             start_season = normalize_season(args.start_season)
-            
-            run_full_ingestion(start_season, end_season, args.resume)
-            
-        elif args.mode == 'incremental':
-            run_incremental_ingestion(args.limit_seasons)
+            run_full_ingestion_legacy(start_season, end_season, args.resume)
 
     except KeyboardInterrupt:
-        # Ya manejado por signal_handler
         pass
 
 

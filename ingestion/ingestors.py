@@ -17,8 +17,9 @@ from ingestion.api_common import FatalIngestionError
 from ingestion.utils import (
     parse_date, convert_minutes_to_interval, safe_int, safe_float
 )
+from db.logging import log_step
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("dateados.ingestion.ingestors")
 
 class GameIngestion:
     """Maneja la ingesta de un partido individual."""
@@ -288,7 +289,7 @@ class SeasonIngestion:
         reporter: Optional[Any] = None
     ) -> Dict[str, int]:
         """Ingiere todos los partidos de una temporada."""
-        logger.info(f"Iniciando ingesta de temporada {season}...")
+        logger.debug(f"Iniciando ingesta detallada de temporada {season}...")
         
         games_data = self.api.fetch_season_games(season)
         if not games_data:
@@ -357,5 +358,4 @@ class SeasonIngestion:
                 logger.error(f"Error fatal en temporada {season}, partido {gid}. Checkpoint guardado.")
                 raise
         
-        logger.info(f"Temporada {season} completada: {success} exitosos, {failed} fallidos")
         return {'total': len(games_data), 'success': success, 'failed': failed}

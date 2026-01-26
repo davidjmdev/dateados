@@ -1,14 +1,16 @@
 import logging
 import time
+import gc
 from datetime import date, datetime, timedelta
 from typing import Optional, Dict, Any, List, Set, Tuple
 from dateutil import parser as date_parser
 
 from ingestion.config import (
-    API_DELAY, API_TIMEOUT 
+    API_DELAY, API_TIMEOUT, MAX_WORKERS_LOCAL, MAX_WORKERS_CLOUD
 )
+from db.logging import PROGRESS_LOG_EVERY_N_SECONDS
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("dateados.ingestion.utils")
 
 
 def normalize_season(season: str) -> str:
@@ -63,7 +65,6 @@ def convert_minutes_to_interval(min_str: str) -> timedelta:
 
 
 def parse_date(date_str: Any) -> Optional[date]:
-
     """Parsea una fecha desde string o objeto date."""
     if not date_str: return None
     if isinstance(date_str, date): return date_str
@@ -108,7 +109,7 @@ class ProgressReporter:
         self.last_message = ""
         self.start_time = time.time()
         self.last_update_time = self.start_time
-        self.last_log_time = self.start_time  # Para controlar frecuencia de logs
+        self.last_log_time = self.start_time
         self.items_processed = 0
         self.total_items = 0
     
@@ -117,21 +118,14 @@ class ProgressReporter:
         self.total_items = total
     
     def increment(self, message: str = "", delta: int = 1):
-        """Incrementa el contador de items procesados y actualiza progreso automáticamente.
-        
-        Args:
-            message: Mensaje descriptivo del progreso (opcional)
-            delta: Número de items procesados (default: 1)
-        """
+        """Incrementa el contador de items procesados y actualiza progreso automáticamente."""
         self.items_processed += delta
         
-        # Calcular progreso automáticamente si tenemos total
         if self.total_items > 0:
             progress = min(100, int((self.items_processed / self.total_items) * 100))
         else:
             progress = self.current_progress
         
-        # Calcular métricas temporales
         elapsed = time.time() - self.start_time
         metrics_msg = self._build_metrics_message(message, elapsed)
         
@@ -140,103 +134,63 @@ class ProgressReporter:
     def _build_metrics_message(self, base_message: str, elapsed: float) -> str:
         """Construye un mensaje con métricas de rendimiento."""
         msg_parts = []
+        if base_message: msg_parts.append(base_message)
+        elif self.total_items > 0: msg_parts.append(f"{self.items_processed}/{self.total_items}")
         
-        # Mensaje base
-        if base_message:
-            msg_parts.append(base_message)
-        elif self.total_items > 0:
-            msg_parts.append(f"{self.items_processed}/{self.total_items}")
-        
-        # Agregar velocidad si tiene sentido
         if self.items_processed > 0 and elapsed > 1:
             rate = self.items_processed / elapsed
-            if rate >= 1:
-                msg_parts.append(f"{rate:.1f} items/s")
-            elif rate >= 0.1:
-                msg_parts.append(f"{rate:.2f} items/s")
+            msg_parts.append(f"{rate:.1f} items/s" if rate >= 1 else f"{rate:.2f} items/s")
         
-        # Agregar ETA si es útil (solo si tenemos total y han pasado al menos 10 segundos)
         if self.total_items > 0 and self.items_processed > 0 and elapsed > 10:
             remaining = self.total_items - self.items_processed
             if remaining > 0:
                 rate = self.items_processed / elapsed
                 if rate > 0:
                     eta_seconds = remaining / rate
-                    if eta_seconds > 60:
-                        eta_min = int(eta_seconds / 60)
-                        msg_parts.append(f"ETA: ~{eta_min}min")
-                    elif eta_seconds > 0:
-                        msg_parts.append(f"ETA: ~{int(eta_seconds)}s")
+                    msg_parts.append(f"ETA: ~{int(eta_seconds/60)}min" if eta_seconds > 60 else f"ETA: ~{int(eta_seconds)}s")
         
         return " | ".join(msg_parts) if msg_parts else "En progreso..."
 
     def update(self, progress: Optional[int], message: str, status: str = "running"):
-        """Actualiza el estado en la base de datos.
-        
-        Args:
-            progress: Porcentaje de progreso (0-100) o None para mantener el actual
-            message: Mensaje descriptivo
-            status: Estado de la tarea (running, completed, failed)
-        """
-        from ingestion.log_config import PROGRESS_LOG_EVERY_N_SECONDS
-        
+        """Actualiza el estado en la base de datos."""
         if progress is not None:
             self.current_progress = progress
         
         display_progress = self.current_progress
         self.last_message = message
         
-        # Control inteligente de logging: solo loguear si han pasado >N segundos
-        # Esto reduce drasticamente el spam en log_entries
         now = time.time()
         should_log = (now - self.last_log_time) >= PROGRESS_LOG_EVERY_N_SECONDS
         
-        if should_log or display_progress >= 100 or status != "running":
+        if should_log or status != "running":
             elapsed = int(now - self.start_time)
-            if elapsed > 60:
-                elapsed_str = f"{elapsed//60}m{elapsed%60}s"
-            else:
-                elapsed_str = f"{elapsed}s"
-            
-            logger.info(f"[{self.task_name}] {display_progress}% - {message} (Tiempo: {elapsed_str})")
+            elapsed_str = f"{elapsed//60}m{elapsed%60}s" if elapsed > 60 else f"{elapsed}s"
+            # DEBUG para no duplicar en consola con los logs INFO de la estrategia
+            logger.debug(f"[{self.task_name}] {display_progress}% - {message} ({elapsed_str})")
             self.last_log_time = now
         
-        # Actualizar SystemStatus SIEMPRE (esto es lo que ve el monitor en tiempo real)
         if self.session_factory:
             from db.models import SystemStatus
             session = self.session_factory()
             try:
                 task = session.query(SystemStatus).filter_by(task_name=self.task_name).first()
-                is_new = False
                 if not task:
                     task = SystemStatus(task_name=self.task_name)
                     session.add(task)
-                    is_new = True
                 
                 task.status = status
                 task.progress = display_progress
                 task.message = message
-                
-                # CRÍTICO: Solo establecer last_run al crear la tarea (marca el inicio)
-                # No actualizar en cada update o perdemos el tiempo de inicio
-                if is_new or task.last_run is None:
-                    task.last_run = datetime.now()
-                
+                if task.last_run is None: task.last_run = datetime.now()
                 session.commit()
                 self.last_update_time = now
-            except Exception:
-                # No loguear error de SystemStatus para no crear ruido
-                session.rollback()
-            finally:
-                session.close()
+            except Exception: session.rollback()
+            finally: session.close()
 
     def complete(self, message: str = "Tarea completada con éxito"):
         """Marca la tarea como completada."""
         elapsed = int(time.time() - self.start_time)
-        if elapsed > 60:
-            elapsed_str = f" en {elapsed//60}m{elapsed%60}s"
-        else:
-            elapsed_str = f" en {elapsed}s"
+        elapsed_str = f" en {elapsed//60}m{elapsed%60}s" if elapsed > 60 else f" en {elapsed}s"
         self.update(100, message + elapsed_str, status="completed")
 
     def fail(self, message: str):
@@ -245,40 +199,23 @@ class ProgressReporter:
 
 
 def get_max_workers(requested_count: Optional[int] = None) -> int:
-    """Determina el número máximo de workers basado en el entorno.
-    
-    Si se proporciona requested_count, se usa ese valor como deseo,
-    pero siempre respetando los límites del entorno.
-    """
+    """Determina el número máximo de workers basado en el entorno."""
     import os
-    from ingestion.config import MAX_WORKERS_LOCAL, MAX_WORKERS_CLOUD
-    
-    # En Render o modo Cloud, siempre forzamos el límite de bajo consumo
     if os.getenv("RENDER") == "true" or os.getenv("WEB_MODE") == "true" or os.getenv("CLOUD_MODE") == "true":
         return MAX_WORKERS_CLOUD
-        
-    # En local, usamos el valor solicitado o el máximo local por defecto
     return requested_count if requested_count is not None else MAX_WORKERS_LOCAL
 
 
 def clear_memory():
     """Limpia memoria y recolecta basura."""
-    import gc
     gc.collect()
 
 
 def get_all_seasons(start_year: int = 1983) -> List[str]:
-    """Genera una lista de todas las temporadas de la NBA desde start_year hasta hoy."""
-    from datetime import datetime
+    """Genera una lista de todas las temporadas de la NBA."""
     current_year = datetime.now().year
-    # Si estamos en octubre o después, la temporada actual ya ha empezado (ej: 2024-25)
-    if datetime.now().month >= 10:
-        end_year = current_year
-    else:
-        end_year = current_year - 1
-        
+    end_year = current_year if datetime.now().month >= 10 else current_year - 1
     seasons = []
     for year in range(start_year, end_year + 1):
-        next_year = (year + 1) % 100
-        seasons.append(f"{year}-{next_year:02d}")
+        seasons.append(f"{year}-{(year + 1) % 100:02d}")
     return seasons

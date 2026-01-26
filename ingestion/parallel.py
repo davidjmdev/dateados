@@ -6,40 +6,18 @@ import time
 import sys
 from typing import List, Callable, Any, Dict, Tuple
 
+from db.logging import setup_logging, WORKER_LOG_LEVEL
 from ingestion.config import (
-    LOG_FORMAT, LOG_DATE_FORMAT, 
     WORKER_STAGGER_MIN, WORKER_STAGGER_MAX
 )
 from ingestion.api_common import FatalIngestionError
-from db.utils.logging_handler import SQLAlchemyHandler
 
 logger = logging.getLogger(__name__)
 
 def setup_worker_logging(worker_name: str):
     """Configura el logging para un worker en la base de datos."""
-    from ingestion.log_config import WORKER_LOG_LEVEL
-    
-    # Limpiar handlers existentes
-    root = logging.getLogger()
-    for handler in root.handlers[:]:
-        root.removeHandler(handler)
-    
-    # Configurar nivel dinámico según entorno
-    log_level = getattr(logging, WORKER_LOG_LEVEL, logging.INFO)
-        
-    logging.basicConfig(
-        level=log_level,
-        format=LOG_FORMAT,
-        datefmt=LOG_DATE_FORMAT,
-        handlers=[
-            SQLAlchemyHandler(),
-            # No usamos StreamHandler en workers para no saturar la consola principal si hay muchos
-        ]
-    )
-    
-    # Silenciar otros loggers ruidosos
-    logging.getLogger('urllib3').setLevel(logging.WARNING)
-    logging.getLogger('nba_api').setLevel(logging.WARNING)
+    # Usar el setup centralizado
+    setup_logging(context="worker")
 
 def run_worker_with_stagger(worker_func: Callable, name: str, *args, **kwargs):
     """Ejecuta una función de worker con un retraso inicial aleatorio."""

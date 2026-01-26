@@ -17,8 +17,9 @@ from db.models import (
 )
 from ingestion.models_sync import update_champions
 from ingestion.utils import safe_int, safe_float
+from db.logging import log_step, log_success
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("dateados.ingestion.derived")
 
 
 class DerivedTablesGenerator:
@@ -42,12 +43,12 @@ class DerivedTablesGenerator:
             logger.warning("No se especificaron temporadas para regenerar")
             return
         
-        logger.info(f"Regenerando tablas derivadas para {len(seasons)} temporadas: {', '.join(seasons)}")
+        log_step(f"Regenerando tablas derivadas para {len(seasons)} temporadas")
         
         for season in seasons:
             self._regenerate_season(session, season)
         
-        logger.info(f"Regeneración completada para {len(seasons)} temporadas")
+        logger.debug(f"Regeneración completada para {len(seasons)} temporadas")
     
     def regenerate_all(self, session: Session):
         """Regenera todas las tablas derivadas.
@@ -58,9 +59,9 @@ class DerivedTablesGenerator:
         Args:
             session: Sesión de SQLAlchemy
         """
-        logger.info("Regenerando TODAS las tablas derivadas...")
+        log_step("Regenerando TODAS las tablas derivadas")
         self._regenerate_season(session, season=None)
-        logger.info("Regeneración completa finalizada")
+        log_success("Regeneración completa finalizada")
     
     def _regenerate_season(self, session: Session, season: Optional[str] = None):
         """Regenera tablas derivadas para una temporada o todas.
@@ -71,7 +72,7 @@ class DerivedTablesGenerator:
         """
         # 1. Borrar registros existentes para evitar datos huérfanos/obsoletos
         if season:
-            logger.info(f"Limpiando tablas derivadas de la temporada {season}...")
+            logger.debug(f"Limpiando tablas derivadas de la temporada {season}...")
             # Borrar PlayerTeamSeason
             session.query(PlayerTeamSeason).filter(PlayerTeamSeason.season == season).delete(synchronize_session=False)
             
@@ -80,7 +81,7 @@ class DerivedTablesGenerator:
             if gids:
                 session.query(TeamGameStats).filter(TeamGameStats.game_id.in_(gids)).delete(synchronize_session=False)
         else:
-            logger.info("Limpiando TODAS las tablas derivadas...")
+            logger.debug("Limpiando TODAS las tablas derivadas...")
             session.query(PlayerTeamSeason).delete(synchronize_session=False)
             session.query(TeamGameStats).delete(synchronize_session=False)
         

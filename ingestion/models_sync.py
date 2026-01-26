@@ -26,8 +26,9 @@ from ingestion.utils import (
     safe_int, safe_float, safe_int_or_none, parse_date, 
     normalize_season
 )
+from db.logging import log_step, log_success
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("dateados.ingestion.sync")
 
 
 class TeamSync:
@@ -55,7 +56,7 @@ class TeamSync:
             if conflict:
                 logger.warning(f"Conflicto: Abreviatura {abbr} ya usada por ID {conflict.id}. Renombrando nueva entrada para ID {team_id}...")
                 abbr = f"{abbr}_{team_id}"
-
+ 
             existing = session.query(Team).filter(Team.id == team_id).first()
             
             team_info = {
@@ -223,7 +224,7 @@ class PlayerSync:
                 # NUEVO: Actualizar progreso DESPUÉS DE CADA JUGADOR
                 if reporter:
                     reporter.increment(f"ID {player_id}")
-
+ 
                 # Obtener información detallada (fatal=True para relanzar si hay bloqueo)
                 info_obj = api.fetch_player_info(player_id, fatal=True)
                 if not info_obj:
@@ -581,5 +582,5 @@ def update_champions(session: Session, season: str):
         session.commit()
         
     except Exception as e:
-        logger.error(f"Error actualizando campeones para {season}: {e}")
+        logger.error(f"Error actualizando campeones for {season}: {e}")
         session.rollback()

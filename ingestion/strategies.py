@@ -5,7 +5,8 @@ Este módulo define las clases principales que orquestan el proceso de ingesta.
 import logging
 import time
 import multiprocessing
-from typing import Optional, Dict, Any, List
+import math
+from typing import Optional, Dict, Any, List, Tuple
 from datetime import date
 
 from sqlalchemy.orm import Session
@@ -21,15 +22,18 @@ from ingestion.derived_tables import DerivedTablesGenerator
 from ingestion.config import API_DELAY
 from ingestion.api_common import FatalIngestionError
 from ingestion.utils import (
-    ProgressReporter, get_max_workers, clear_memory, get_all_seasons, 
-    normalize_season
+    get_max_workers, clear_memory, get_all_seasons, 
+    normalize_season, ProgressReporter
+)
+from db.logging import (
+    log_header, log_success, log_step
 )
 from ingestion.parallel import run_worker_with_stagger, run_parallel_task
 from ingestion.workers import (
     season_batch_worker_func, awards_worker_func, player_info_worker_func
 )
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("dateados.ingestion.strategies")
 
 class BaseIngestion:
     """Clase base con lógica común para ingestas."""
@@ -44,6 +48,7 @@ class BaseIngestion:
 
     def sync_base_entities(self, session: Session, reporter: Optional[ProgressReporter] = None):
         """Sincroniza equipos y jugadores base."""
+        log_step("Sincronizando entidades base (equipos y jugadores)")
         if reporter: reporter.update(2, "Sincronizando equipos...")
         self.team_sync.sync_all(session)
         if reporter: reporter.update(5, "Sincronizando jugadores...")
@@ -60,8 +65,8 @@ class BaseIngestion:
         player_ids = [pid for (pid,) in session.query(Player.id).filter(filter_query).all()]
         
         if player_ids:
-            msg = f"Sincronizando premios para {len(player_ids)} jugadores..."
-            logger.info(msg)
+            msg = f"Sincronizando premios para {len(player_ids)} jugadores"
+            log_step(msg)
             if reporter: reporter.update(80, msg)
             
             run_parallel_task(
@@ -75,8 +80,8 @@ class BaseIngestion:
         # 2. Biografías
         pending_bio = [pid for (pid,) in session.query(Player.id).filter(Player.bio_synced == False).all()]
         if pending_bio:
-            msg = f"Sincronizando biografías para {len(pending_bio)} jugadores..."
-            logger.info(msg)
+            msg = f"Sincronizando biografías para {len(pending_bio)} jugadores"
+            log_step(msg)
             if reporter: reporter.update(90, msg)
             
             run_parallel_task(
@@ -97,16 +102,15 @@ class BaseIngestion:
                 run_detection_for_games(session, [])
                 return
 
-            msg = f"Detectando outliers en {len(game_ids)} partidos..."
-            logger.info(msg)
+            msg = f"Detectando outliers en {len(game_ids)} partidos"
+            log_step(msg)
             if reporter: reporter.update(95, msg)
             
             new_stats = session.query(PlayerGameStats).filter(PlayerGameStats.game_id.in_(game_ids)).all()
             if new_stats:
                 res = run_detection_for_games(session, new_stats)
-                logger.info(f"Outliers: {res.total_outliers} (L:{res.league_outliers}, J:{res.player_outliers}, R:{res.streak_outliers})")
+                logger.info(f"Outliers detectados: {res.total_outliers}")
             else:
-                # Si por alguna razón no hay stats para esos IDs, aún así intentamos inicialización
                 run_detection_for_games(session, [])
                 
         except ImportError: pass
@@ -117,82 +121,6 @@ class BaseIngestion:
         start, end = normalize_season(start), normalize_season(end)
         s_year, e_year = int(start.split('-')[0]), int(end.split('-')[0])
         return [f"{y}-{(y+1)%100:02d}" for y in range(s_year, e_year + 1)]
-
-
-class FullIngestion(BaseIngestion):
-    """Maneja la ingesta histórica completa."""
-    
-    FATAL_EXIT_CODE = 42
-
-    def run(self, start_season: str, end_season: str, checkpoint: Optional[Dict] = None, reporter: Optional[ProgressReporter] = None):
-        """Ejecuta ingesta completa histórica paralela."""
-        if reporter: reporter.update(0, "Iniciando ingesta completa...")
-        session = get_session()
-        try:
-            # 1. Sincronizar entidades base
-            self.sync_base_entities(session, reporter)
-            
-            # 2. Obtener lista de temporadas
-            seasons = self._get_season_range(start_season, end_season)
-            
-            if checkpoint:
-                seasons = [s for s in seasons if self._is_season_pending(session, s)]
-
-            if not seasons:
-                logger.info("No hay temporadas pendientes.")
-                if reporter: reporter.update(100, "No hay temporadas pendientes")
-            else:
-                msg = f"Iniciando ingesta paralela para {len(seasons)} temporadas"
-                logger.info(f"{msg}: {seasons}")
-                if reporter: reporter.update(10, msg)
-            
-            # 3. Lanzar procesos de temporadas de forma dinámica
-            max_workers = get_max_workers()
-            num_seasons = len(seasons)
-            # Calculamos cuántos workers necesitamos realmente (mínimo entre capacidad y trabajo)
-            num_workers = min(max_workers, num_seasons)
-            
-            if num_workers > 0:
-                # Repartimos las temporadas equitativamente entre los workers
-                import math
-                chunk_size = math.ceil(num_seasons / num_workers)
-                season_chunks = [seasons[i:i + chunk_size] for i in range(0, num_seasons, chunk_size)]
-                
-                processes = {}
-                for chunk in season_chunks:
-                    batch_name = "_".join(chunk)
-                    p = multiprocessing.Process(
-                        target=run_worker_with_stagger,
-                        args=(season_batch_worker_func, f"batch_{batch_name}", list(chunk)),
-                        name=f"Worker-{chunk[0]}_etc"
-                    )
-                    p.start()
-                    processes[tuple(chunk)] = p
-                
-                # 4. Supervisar procesos
-                self._supervise_processes(processes, season_batch_worker_func, "batch")
-            
-            # 5. Post-procesamiento (Premios y Bios)
-            logger.info("Fase de temporadas completada. Iniciando post-procesamiento...")
-            if reporter: reporter.update(75, "Temporadas completadas. Sincronizando datos de jugadores...")
-            self.sync_post_process(session, reporter)
-            
-            # 6. Outliers (Asegurar inicialización de rachas)
-            if reporter: reporter.update(95, "Verificando sistema de outliers...")
-            from outliers.runner import run_detection_for_games
-            run_detection_for_games(session, []) # Esto disparará el auto-backfill si está vacío
-            
-            if reporter: reporter.complete("Ingesta completa histórica finalizada")
-            logger.info("✅ Ingesta completa histórica finalizada")
-            
-        finally:
-            session.close()
-
-    def _is_season_pending(self, session, season):
-        """Verifica si una temporada necesita ser procesada."""
-        ckpt_mgr = CheckpointManager(checkpoint_key=f"season_{season}")
-        if ckpt_mgr.load_checkpoint(): return True
-        return session.query(Game.id).filter(Game.season == season).first() is None
 
     def _supervise_processes(self, processes, worker_func, prefix):
         active_processes = processes.copy()
@@ -216,136 +144,138 @@ class FullIngestion(BaseIngestion):
             time.sleep(5)
 
 
-class IncrementalIngestion(BaseIngestion):
-    """Maneja la ingesta incremental paralela."""
+class SmartIngestion(BaseIngestion):
+    """Estrategia inteligente que combina incremental y carga masiva.
     
-    def __init__(self, api_client: NBAApiClient, checkpoint_mgr: Optional[CheckpointManager] = None, skip_outliers: bool = False):
-        super().__init__(api_client, checkpoint_mgr)
-        self.skip_outliers = skip_outliers
+    Analiza el historial de forma inversa (hoy -> 1983) para determinar
+    el estado de la base de datos y actuar en consecuencia:
+    1. Temporadas incompletas (frontera) -> Escaneo incremental preciso.
+    2. Temporadas vacías -> Carga masiva paralela.
+    """
     
-    def run(self, limit_seasons: Optional[int] = None, reporter: Optional[ProgressReporter] = None):
-        """Ejecuta la sincronización incremental usando detección de brechas."""
-        limit_text = f"últimas {limit_seasons} temporadas" if limit_seasons else "hasta encontrar historial"
-        logger.info(f"Iniciando ingesta incremental ({limit_text})...")
-        if reporter: reporter.update(0, "Iniciando ingesta incremental...")
-        
+    def run(self, limit_seasons: Optional[int] = None, skip_outliers: bool = False, reporter: Optional[ProgressReporter] = None):
+        """Ejecuta la ingesta inteligente."""
         session = get_session()
         try:
-            # 1. Entidades base (Equipos/Jugadores)
+            log_header("INICIANDO INGESTA INTELIGENTE", "dateados.ingestion")
+            
+            # 1. Sincronizar entidades base
             self.sync_base_entities(session, reporter)
-
-            # 2. Procesar partidos recientes
+            
+            # 2. Análisis de estado (Scan Phase)
+            log_step("Analizando estado de la base de datos")
+            if reporter: reporter.update(5, "Analizando estado...")
+            
             all_seasons = sorted(get_all_seasons(), reverse=True)
-            seasons_to_process = all_seasons[:limit_seasons] if limit_seasons else all_seasons
-            
-            new_seasons = set()
-            new_game_ids = []
-            
-            for i, season in enumerate(seasons_to_process):
-                msg = f"Escaneando temporada {season}..."
-                logger.info(msg)
-                if reporter: reporter.update(5 + int((i / len(seasons_to_process)) * 60), msg)
-
-                # Procesar la temporada con la nueva lógica de brechas
-                gap_closed, processed_ids = self._process_incremental_season(session, season, reporter=reporter)
+            if limit_seasons:
+                all_seasons = all_seasons[:limit_seasons]
                 
-                if processed_ids:
-                    new_seasons.add(season)
-                    new_game_ids.extend(processed_ids)
+            batch_seasons = []
+            incremental_season = None
+            
+            for season in all_seasons:
+                # Check rápido
+                has_games = session.query(Game.id).filter(
+                    and_(Game.season == season, Game.status == 3)
+                ).first() is not None
                 
-                # Si hemos encontrado y cerrado la brecha de datos, terminamos
-                if gap_closed:
-                    logger.info(f"Brecha de datos cerrada en temporada {season}. Sincronización completa.")
+                if not has_games:
+                    batch_seasons.append(season)
+                else:
+                    incremental_season = season
+                    logger.info(f"➜ Frontera de datos detectada en: {season}")
                     break
             
-            # 3. Regenerar tablas derivadas
-            if new_seasons:
-                if reporter: reporter.update(70, "Recalculando estadísticas agregadas...")
-                self.derived.regenerate_for_seasons(session, list(new_seasons))
+            # 3. Fase Incremental (Frontera)
+            new_game_ids = []
+            new_seasons_processed = set()
             
-            # 4. Post-procesamiento y Outliers (SOLO SI HAY NOVEDADES REALES)
-            if new_game_ids:
-                # Actualizar premios y biografías solo si ha habido partidos nuevos.
-                self.sync_post_process(session, reporter, active_only_awards=True, prefix="incremental_")
+            if incremental_season:
+                log_step(f"Sincronizando temporada frontera: {incremental_season}")
+                if reporter: reporter.update(10, f"Actualizando {incremental_season}...")
                 
-                # Outliers
-                if not self.skip_outliers:
+                _, processed_ids = self._process_incremental_season(session, incremental_season, reporter)
+                if processed_ids:
+                    new_game_ids.extend(processed_ids)
+                    new_seasons_processed.add(incremental_season)
+            
+            # 4. Fase Batch (Histórico Vacío)
+            if batch_seasons:
+                msg = f"Cargando {len(batch_seasons)} temporadas vacías en paralelo"
+                log_step(msg)
+                if reporter: reporter.update(15, "Iniciando carga masiva...")
+                
+                self._run_parallel_batch(batch_seasons)
+                new_seasons_processed.update(batch_seasons)
+            
+            # 5. Regenerar tablas derivadas
+            if new_seasons_processed:
+                log_step("Recalculando estadísticas agregadas")
+                if reporter: reporter.update(80, "Generando tablas derivadas...")
+                self.derived.regenerate_for_seasons(session, list(new_seasons_processed))
+            
+            # 6. Post-procesamiento y Outliers
+            if new_game_ids or batch_seasons:
+                prefix = "smart_"
+                active_only = not batch_seasons
+                
+                self.sync_post_process(session, reporter, active_only_awards=active_only, prefix=prefix)
+                
+                if not skip_outliers:
                     self.run_outlier_detection(session, new_game_ids, reporter)
-                
-                if reporter: reporter.complete("Base de datos actualizada.")
-            else:
-                logger.info("Base de datos ya estaba al día. No se detectaron partidos terminados nuevos.")
-                if reporter: reporter.complete("Base de datos al día.")
             
-            return # <--- Fin del proceso (Ahorra tiempo de limpieza innecesaria)
+            if reporter: reporter.complete("Ingesta finalizada")
+            log_success("Ingesta inteligente completada con éxito")
             
         except FatalIngestionError:
             raise
         except Exception as e:
+            logger.error(f"Error en SmartIngestion: {e}", exc_info=True)
             if reporter: reporter.fail(str(e))
-            logger.error(f"Error en incremental: {e}")
             raise
         finally:
             session.close()
-            clear_memory()
 
-    def _process_incremental_season(self, session, season, reporter=None):
-        """Procesa una temporada incrementalmente detectando brechas de datos."""
+    def _process_incremental_season(self, session, season, reporter=None) -> Tuple[bool, List[str]]:
+        """Procesa una temporada incrementalmente detectando brechas."""
+        # Reutilizamos lógica similar a IncrementalIngestion pero simplificada
         games_data = self.api.fetch_season_games(season)
         if not games_data: return False, []
         
-        # FASE 1: Escaneo de brecha (Nuevo -> Viejo)
-        # Identificamos qué partidos faltan o están incompletos
+        # Escaneo de brecha (Nuevo -> Viejo)
         gap_games = []
         consecutive_existing = 0
         today_str = date.today().isoformat()
-        
-        logger.info(f"Escaneando {len(games_data)} partidos en busca de novedades...")
         
         for gd in games_data:
             gid = gd['game_id']
             api_finished = gd.get('is_finished', False)
 
-            # Comprobar si existe y está finalizado en nuestra DB
             existing = session.query(Game.status, Game.home_score, Game.date).filter(Game.id == gid).first()
             
-            # Un partido se considera "completo" en nuestra DB si status es 3 (finalizado oficial)
-            # o si es status 1 pero tiene marcador y es de fecha pasada (error común de la API)
             db_finished = False
             if existing:
                 home_score = existing.home_score or 0
                 db_finished = (existing.status == 3 or (existing.status == 1 and home_score > 0 and str(existing.date) < today_str))
             
             if api_finished and not db_finished:
-                # ¡Es una novedad real! (Terminado en la API pero no completo en nuestra DB)
-                logger.info(f"  + Novedad detectada: Partido {gid} (API dice terminado, DB incompleto)")
                 gap_games.append(gd)
                 consecutive_existing = 0
             elif db_finished:
-                # Ya lo tenemos completo.
                 consecutive_existing += 1
                 if consecutive_existing >= 3:
-                    logger.debug(f"  - Brecha cerrada en partido {gid}")
                     break
-            elif not api_finished:
-                # El partido está en juego o programado según la API.
-                # Lo ignoramos pero lo logueamos a nivel debug para saber qué pasa.
-                logger.debug(f"  - Saltando {gid}: Partido en directo o futuro según API (sin WL)")
-
+        
         if not gap_games:
-            return True, [] # Brecha cerrada (estamos al día)
+            return True, []
 
-        # FASE 2: Procesamiento de brecha (Viejo -> Nuevo)
-        # Le damos la vuelta para que, si falla, al menos los más antiguos se hayan guardado
+        # Procesamiento (Viejo -> Nuevo)
         gap_games.reverse()
         processed_ids = []
         
-        logger.info(f"Detectada brecha de {len(gap_games)} partidos. Procesando del más antiguo al más moderno...")
-        if reporter: 
-            reporter.set_total(len(gap_games))
-            reporter.update(None, f"Procesando {len(gap_games)} partidos nuevos...")
-
-        for j, gd in enumerate(gap_games):
+        logger.info(f"  + Rellenando brecha de {len(gap_games)} partidos en {season}...")
+        
+        for i, gd in enumerate(gap_games):
             gid = gd['game_id']
             try:
                 res = self.game_ingestion.ingest_game(
@@ -359,17 +289,42 @@ class IncrementalIngestion(BaseIngestion):
                 if res is True: 
                     processed_ids.append(gid)
                     if reporter: reporter.increment(f"Partido {gid[:8]}", delta=1)
-                elif res is False: 
-                    raise FatalIngestionError(f"Fallo en partido incremental {gid}")
+                elif res is False:
+                    raise FatalIngestionError(f"Fallo en partido {gid}")
                 
-                if j % 10 == 0: clear_memory()
+                if i % 10 == 0: clear_memory()
                 time.sleep(API_DELAY)
-
             except FatalIngestionError:
-                # No necesitamos guardar checkpoints externos porque la DB ya tiene los partidos "viejos" guardados
-                logger.error(f"Error fatal en brecha. Procesados {len(processed_ids)}/{len(gap_games)} partidos.")
                 raise
-            
-        # Retornamos True si el escaneo encontró el final de la brecha (consecutive_existing >= 3)
-        # o False si revisamos toda la temporada y no encontramos el historial (hay que mirar la anterior)
-        return consecutive_existing >= 3, processed_ids
+        
+        return True, processed_ids
+
+    def _run_parallel_batch(self, seasons: List[str]):
+        """Ejecuta la carga paralela para una lista de temporadas."""
+        max_workers = get_max_workers()
+        num_seasons = len(seasons)
+        num_workers = min(max_workers, num_seasons)
+        
+        if num_workers <= 0: return
+
+        chunk_size = math.ceil(num_seasons / num_workers)
+        season_chunks = [seasons[i:i + chunk_size] for i in range(0, num_seasons, chunk_size)]
+        
+        processes = {}
+        for chunk in season_chunks:
+            if not chunk: continue
+            batch_name = f"{chunk[0]}_to_{chunk[-1]}"
+            p = multiprocessing.Process(
+                target=run_worker_with_stagger,
+                args=(season_batch_worker_func, f"batch_{batch_name}", list(chunk)),
+                name=f"Worker-{batch_name}"
+            )
+            p.start()
+            processes[tuple(chunk)] = p
+        
+        self._supervise_processes(processes, season_batch_worker_func, "batch")
+
+
+# Alias para compatibilidad, aunque SmartIngestion reemplaza a ambas en uso general
+FullIngestion = SmartIngestion
+IncrementalIngestion = SmartIngestion

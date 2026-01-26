@@ -13,7 +13,7 @@ import time
 from db.connection import get_session, get_engine
 from db.models import SystemStatus, Base, LogEntry
 from ingestion.utils import ProgressReporter
-from db.utils.log_cleanup import cleanup_for_new_ingestion
+from db.logging import cleanup_for_new_ingestion
 from ingestion.checkpoints import CheckpointManager
 
 router = APIRouter(prefix="/admin")
@@ -47,7 +47,7 @@ async def get_ingestion_logs(limit: int = 50, db: Session = Depends(get_db)):
 
 @router.get("/ingest")
 async def ingest_page(request: Request, db: Session = Depends(get_db)):
-    status = db.query(SystemStatus).filter_by(task_name="incremental_ingestion").first()
+    status = db.query(SystemStatus).filter_by(task_name="smart_ingestion").first()
 
     return templates.TemplateResponse("admin/ingest.html", {
         "request": request,
@@ -84,58 +84,49 @@ def stop_all_ingestions():
     active_processes = []
 
 def run_ingestion_task():
-    """Ejecuta la ingesta incremental llamando al CLI como subproceso.
+    """Ejecuta la ingesta inteligente llamando al CLI como subproceso.
     
-    Captura la salida en tiempo real para re-emitirla a través del logger del padre,
-    asegurando que los logs lleguen a la base de datos incluso en entornos
-    donde el subproceso tenga dificultades para inicializar su propio handler.
+    El subproceso se configura para ser silencioso en stdout (ya que escribe logs 
+    directamente en la DB) para evitar duplicidad y ruido en los logs del servidor.
     """
     global active_processes
     python_exec = sys.executable
-    # Forzar buffering de línea en el subproceso con PYTHONUNBUFFERED=1
     import os
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
+    # IMPORTANTE: Indicamos al CLI que no escriba en stdout para evitar duplicados.
+    # El CLI y sus workers ya escriben directamente en la tabla log_entries.
+    env["INGEST_SILENT_STDOUT"] = "true"
     
-    cmd = [python_exec, "-m", "ingestion.cli", "--mode", "incremental"]
+    cmd = [python_exec, "-m", "ingestion.cli"]
     
     logger = logging.getLogger("web.admin")
     process = None
     try:
-        # Ejecutar el CLI redirigiendo stderr a stdout para capturar todo
+        # Ejecutar el CLI redirigiendo la salida a la consola del servidor (sin loguear de nuevo)
+        # Opcionalmente podemos redirigir a DEVNULL si no queremos ver nada en la terminal.
         process = subprocess.Popen(
             cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
             env=env
         )
         
         active_processes.append(process)
         
-        # Leer salida en tiempo real
-        for line in iter(process.stdout.readline, ""):
-            line = line.strip()
-            if line:
-                # Al usar logger.info aquí, el SQLAlchemyHandler del proceso padre 
-                # (servidor web) se encarga de persistir el log en la base de datos.
-                logger.info(line)
-        
+        # Esperar a que el proceso termine
         process.wait()
         
         if process in active_processes:
             active_processes.remove(process)
         
         if process.returncode != 0 and process.returncode != -signal.SIGINT:
-            reporter = ProgressReporter("incremental_ingestion", session_factory=get_session)
+            reporter = ProgressReporter("smart_ingestion", session_factory=get_session)
             reporter.fail(f"El CLI terminó con código {process.returncode}")
             
     except Exception as e:
         if process and process in active_processes:
             active_processes.remove(process)
         logger.error(f"Error fatal en tarea de ingesta: {e}")
-        reporter = ProgressReporter("incremental_ingestion", session_factory=get_session)
+        reporter = ProgressReporter("smart_ingestion", session_factory=get_session)
         reporter.fail(str(e))
 
 @router.post("/ingest/run")
@@ -149,7 +140,7 @@ async def start_ingestion(background_tasks: BackgroundTasks, clean: bool = False
     # 2. Verificar si ya está corriendo (para el modo normal)
     # Si acabamos de hacer clean, confiamos en que ya no hay nada corriendo
     if not clean:
-        status = db.query(SystemStatus).filter_by(task_name="incremental_ingestion").first()
+        status = db.query(SystemStatus).filter_by(task_name="smart_ingestion").first()
         if status and status.status == "running":
             return {"status": "error", "message": "Ya hay una ingesta en curso."}
     
@@ -161,23 +152,23 @@ async def start_ingestion(background_tasks: BackgroundTasks, clean: bool = False
         db.commit()
         
     # Asegurar que tenemos un registro de estado limpio
-    status = db.query(SystemStatus).filter_by(task_name="incremental_ingestion").first()
+    status = db.query(SystemStatus).filter_by(task_name="smart_ingestion").first()
     if not status:
-        status = SystemStatus(task_name="incremental_ingestion")
+        status = SystemStatus(task_name="smart_ingestion")
         db.add(status)
     
     status.status = "running"
     status.progress = 0
-    status.message = "Iniciando proceso..."
+    status.message = "Iniciando proceso inteligente..."
     status.last_run = datetime.now()
     db.commit()
     
     background_tasks.add_task(run_ingestion_task)
-    return {"status": "success", "message": "Ingesta iniciada en segundo plano."}
+    return {"status": "success", "message": "Ingesta inteligente iniciada en segundo plano."}
 
 @router.get("/ingest/status")
 async def get_ingestion_status(db: Session = Depends(get_db)):
-    status = db.query(SystemStatus).filter_by(task_name="incremental_ingestion").first()
+    status = db.query(SystemStatus).filter_by(task_name="smart_ingestion").first()
     if not status:
         return {"status": "idle", "progress": 0, "message": "No hay tareas registradas."}
     
