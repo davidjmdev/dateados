@@ -86,42 +86,55 @@ def stop_all_ingestions():
 def run_ingestion_task():
     """Ejecuta la ingesta incremental llamando al CLI como subproceso.
     
-    Esto permite reutilizar la lógica de reinicio automático ante errores fatales
-    que ya tiene el CLI, sin riesgo de tirar abajo el servidor web.
-    El progreso se sigue viendo en la web porque el CLI actualiza SystemStatus.
+    Captura la salida en tiempo real para re-emitirla a través del logger del padre,
+    asegurando que los logs lleguen a la base de datos incluso en entornos
+    donde el subproceso tenga dificultades para inicializar su propio handler.
     """
     global active_processes
     python_exec = sys.executable
+    # Forzar buffering de línea en el subproceso con PYTHONUNBUFFERED=1
+    import os
+    env = os.environ.copy()
+    env["PYTHONUNBUFFERED"] = "1"
+    
     cmd = [python_exec, "-m", "ingestion.cli", "--mode", "incremental"]
     
+    logger = logging.getLogger("web.admin")
     process = None
     try:
-        # Ejecutar el CLI
+        # Ejecutar el CLI redirigiendo stderr a stdout para capturar todo
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            env=env
         )
         
-        # Registrar proceso
         active_processes.append(process)
         
-        # Esperar a que termine (incluyendo sus propios reinicios internos)
-        stdout, stderr = process.communicate()
+        # Leer salida en tiempo real
+        for line in iter(process.stdout.readline, ""):
+            line = line.strip()
+            if line:
+                # Al usar logger.info aquí, el SQLAlchemyHandler del proceso padre 
+                # (servidor web) se encarga de persistir el log en la base de datos.
+                logger.info(line)
         
-        # Eliminar de la lista al terminar
+        process.wait()
+        
         if process in active_processes:
             active_processes.remove(process)
         
         if process.returncode != 0 and process.returncode != -signal.SIGINT:
-            # Si el proceso termina con error (y no fue por una interrupción manual)
             reporter = ProgressReporter("incremental_ingestion", session_factory=get_session)
-            reporter.fail(f"El CLI terminó con código {process.returncode}. Error: {stderr}")
+            reporter.fail(f"El CLI terminó con código {process.returncode}")
             
     except Exception as e:
         if process and process in active_processes:
             active_processes.remove(process)
+        logger.error(f"Error fatal en tarea de ingesta: {e}")
         reporter = ProgressReporter("incremental_ingestion", session_factory=get_session)
         reporter.fail(str(e))
 
