@@ -86,25 +86,21 @@ def stop_all_ingestions():
 def run_ingestion_task():
     """Ejecuta la ingesta inteligente llamando al CLI como subproceso.
     
-    El subproceso se configura para ser silencioso en stdout (ya que escribe logs 
-    directamente en la DB) para evitar duplicidad y ruido en los logs del servidor.
+    El CLI ahora usa una lógica centralizada que siempre escribe en la DB
+    y en STDOUT, asegurando visibilidad tanto en la web como en Render.
     """
     global active_processes
     python_exec = sys.executable
     import os
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
-    # IMPORTANTE: Indicamos al CLI que no escriba en stdout para evitar duplicados.
-    # El CLI y sus workers ya escriben directamente en la tabla log_entries.
-    env["INGEST_SILENT_STDOUT"] = "true"
     
     cmd = [python_exec, "-m", "ingestion.cli"]
     
     logger = logging.getLogger("web.admin")
     process = None
     try:
-        # Ejecutar el CLI redirigiendo la salida a la consola del servidor (sin loguear de nuevo)
-        # Opcionalmente podemos redirigir a DEVNULL si no queremos ver nada en la terminal.
+        # Ejecutar el CLI. Su salida STDOUT irá directamente a los logs del servidor (Render).
         process = subprocess.Popen(
             cmd,
             env=env

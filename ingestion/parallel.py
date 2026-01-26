@@ -6,7 +6,7 @@ import time
 import sys
 from typing import List, Callable, Any, Dict, Tuple
 
-from db.logging import setup_logging, WORKER_LOG_LEVEL
+from db.logging import setup_logging
 from ingestion.config import (
     WORKER_STAGGER_MIN, WORKER_STAGGER_MAX
 )
