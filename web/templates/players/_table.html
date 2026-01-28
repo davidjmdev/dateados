@@ -1,49 +1,49 @@
 {% from "components/nba_components.html" import stats_table_header, pagination %}
 
 <div id="players-table-container">
-    <div class="overflow-x-auto">
+    <div class="table-container">
         <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             {{ stats_table_header([
-                {'label': 'Nombre', 'class': 'text-left px-6'},
-                {'label': 'Posición', 'class': 'text-left px-6'},
-                {'label': 'Altura / Peso', 'class': 'text-left px-6'},
-                {'label': 'Draft', 'class': 'text-left px-6'},
-                {'label': 'Carrera', 'class': 'text-left px-6'}
+                {'label': 'Jugador', 'class': 'text-left'},
+                {'label': 'Pos', 'class': 'text-left'},
+                {'label': 'H/W', 'class': 'text-left'},
+                {'label': 'Draft', 'class': 'text-left'},
+                {'label': 'Carrera', 'class': 'text-left'}
             ]) }}
             <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {% for player in players %}
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition cursor-pointer" onclick="window.location='/players/{{ player.id }}'">
-                    <td class="px-6 py-4 whitespace-nowrap">
+                    <td class="px-3 md:px-6 py-3 md:py-4 sticky-column whitespace-nowrap">
                         <div class="flex items-center">
-                            <div class="h-10 w-10 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center text-gray-500 font-bold overflow-hidden border border-gray-100 dark:border-gray-700">
+                            <div class="h-8 w-8 md:h-10 md:w-10 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center text-gray-500 font-bold overflow-hidden border border-gray-100 dark:border-gray-700">
                                 <img src="https://cdn.nba.com/headshots/nba/latest/260x190/{{ player.id }}.png" 
-                                     alt="{{ player.full_name }}" 
+                                     alt="" 
                                      onerror="this.onerror=null; this.src='https://via.placeholder.com/40?text={{ player.full_name[:1] }}'"
                                      class="h-full w-full object-cover">
                             </div>
-                            <div class="ml-4">
-                                <div class="text-sm font-bold text-gray-900 dark:text-gray-100">{{ player.full_name }}</div>
-                                <div class="text-[10px] uppercase font-medium text-gray-500 dark:text-gray-400 tracking-wider">{{ player.country or '-' }}</div>
+                            <div class="ml-3 md:ml-4">
+                                <div class="text-xs md:text-sm font-bold text-gray-900 dark:text-gray-100">{{ player.full_name }}</div>
+                                <div class="text-[9px] md:text-[10px] uppercase font-medium text-gray-500 dark:text-gray-400 tracking-wider">{{ player.country or '-' }}</div>
                             </div>
                         </div>
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 font-medium">
+                    <td class="px-4 md:px-6 py-4 whitespace-nowrap text-xs md:text-sm text-gray-600 dark:text-gray-400 font-medium">
                         {{ player.position or '-' }}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
+                    <td class="px-4 md:px-6 py-4 whitespace-nowrap text-xs md:text-sm text-gray-600 dark:text-gray-400">
                         <span class="font-medium text-gray-900 dark:text-gray-100">{{ player.height or '-' }}</span>
-                        {% if player.weight %}<span class="text-gray-400 dark:text-gray-500 mx-1">/</span>{{ player.weight }} lbs{% endif %}
+                        {% if player.weight %}<span class="text-gray-400 dark:text-gray-500 mx-0.5">/</span>{{ player.weight }}{% endif %}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
+                    <td class="px-4 md:px-6 py-4 whitespace-nowrap text-xs md:text-sm text-gray-600 dark:text-gray-400">
                         {% if player.draft_year %}
                             {{ player.draft_year }}
                         {% else %}
-                            <span class="text-xs text-gray-400">Undrafted</span>
+                            <span class="text-[10px] text-gray-400">Undrafted</span>
                         {% endif %}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 font-mono">
+                    <td class="px-4 md:px-6 py-4 whitespace-nowrap text-xs md:text-sm text-gray-600 dark:text-gray-400 font-mono">
                         {% if player.from_year %}
-                            {{ player.from_year }} - {{ player.to_year or 'Presente' }}
+                            {{ player.from_year }}-{% if player.to_year %}{{ (player.to_year|string)[2:] }}{% else %}Pr{% endif %}
                         {% else %}
                             -
                         {% endif %}
@@ -52,7 +52,7 @@
                 {% else %}
                 <tr>
                     <td colspan="5" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
-                        No se encontraron jugadores que coincidan con los filtros.
+                        No se encontraron jugadores.
                     </td>
                 </tr>
                 {% endfor %}

@@ -40,16 +40,13 @@
         @layer components {
             .custom-scrollbar::-webkit-scrollbar {
                 width: 4px;
+                height: 4px;
             }
             .custom-scrollbar::-webkit-scrollbar-track {
                 background: transparent;
             }
             .custom-scrollbar::-webkit-scrollbar-thumb {
-                background: #4b5563;
-                border-radius: 10px;
-            }
-            .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-                background: #6b7280;
+                @apply bg-slate-300 dark:bg-slate-600 rounded-full;
             }
 
             /* NBA Design System - Standardized Classes */
@@ -62,6 +59,28 @@
             .nba-table-header {
                 @apply bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider text-[10px];
             }
+
+            /* Responsive Table Utilities */
+            .table-container {
+                @apply overflow-x-auto relative custom-scrollbar;
+                -webkit-overflow-scrolling: touch;
+            }
+            
+            /* Shadow indicator for horizontal scroll */
+            .table-container::after {
+                content: '';
+                @apply absolute top-0 right-0 bottom-0 w-8 pointer-events-none transition-opacity duration-300 opacity-0 md:hidden;
+                background: linear-gradient(to right, transparent, rgba(0,0,0,0.05));
+            }
+            
+            .sticky-column {
+                @apply sticky left-0 z-10 bg-inherit;
+                box-shadow: 2px 0 5px -2px rgba(0,0,0,0.1);
+            }
+            
+            .dark .sticky-column {
+                box-shadow: 2px 0 5px -2px rgba(0,0,0,0.3);
+            }
         }
     </style>
     
@@ -70,52 +89,49 @@
 <body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen flex flex-col">
 
     <!-- Navigation -->
-    <nav class="bg-slate-900 text-white shadow-lg">
+    <nav class="bg-slate-900 text-white shadow-lg sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
                 <!-- Logo -->
                 <div class="flex-shrink-0 flex items-center">
-                    <a href="/" class="font-bold text-2xl tracking-tight text-white flex items-center gap-3">
-                        <img src="/static/icon.png" alt="Dateados" class="w-10 h-10">
+                    <a href="/" class="font-bold text-xl md:text-2xl tracking-tight text-white flex items-center gap-2 md:gap-3">
+                        <img src="/static/icon.png" alt="Dateados" class="w-8 h-8 md:w-10 md:h-10">
                         Dateados
                     </a>
                 </div>
                 
                 <!-- Desktop Menu -->
-                <div class="hidden md:block">
-                    <div class="ml-10 flex items-baseline space-x-4">
-                        <a href="/" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-slate-800 {% if active_page == 'home' %}bg-slate-800 text-orange-500{% else %}text-gray-300{% endif %}">Inicio</a>
-                        <a href="/players" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-slate-800 {% if active_page == 'players' %}bg-slate-800 text-orange-500{% else %}text-gray-300{% endif %}">Jugadores</a>
-                        <a href="/teams" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-slate-800 {% if active_page == 'teams' %}bg-slate-800 text-orange-500{% else %}text-gray-300{% endif %}">Equipos</a>
-                        <a href="/seasons" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-slate-800 {% if active_page == 'seasons' %}bg-slate-800 text-orange-500{% else %}text-gray-300{% endif %}">Temporadas</a>
-                        <a href="/leaders" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-slate-800 {% if active_page == 'leaders' %}bg-slate-800 text-orange-500{% else %}text-gray-300{% endif %}">Líderes</a>
-                        <a href="/games" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-slate-800 {% if active_page == 'games' %}bg-slate-800 text-orange-500{% else %}text-gray-300{% endif %}">Partidos</a>
-                        <a href="/streaks" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-slate-800 {% if active_page == 'streaks' %}bg-slate-800 text-orange-500{% else %}text-gray-300{% endif %}">Rachas</a>
-                        <a href="/outliers" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-slate-800 {% if active_page == 'outliers' %}bg-slate-800 text-orange-500{% else %}text-gray-300{% endif %}">Outliers</a>
-                        <a href="/pencil" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-slate-800 {% if active_page == 'pencil' %}bg-slate-800 text-orange-500{% else %}text-gray-300{% endif %}">Alto el lápiz</a>
+                <div class="hidden xl:block">
+                    <div class="ml-4 flex items-baseline space-x-1">
+                        <a href="/" class="px-2 py-2 rounded-md text-xs font-medium hover:bg-slate-800 {% if active_page == 'home' %}bg-slate-800 text-orange-500{% else %}text-gray-300{% endif %}">Inicio</a>
+                        <a href="/players" class="px-2 py-2 rounded-md text-xs font-medium hover:bg-slate-800 {% if active_page == 'players' %}bg-slate-800 text-orange-500{% else %}text-gray-300{% endif %}">Jugadores</a>
+                        <a href="/teams" class="px-2 py-2 rounded-md text-xs font-medium hover:bg-slate-800 {% if active_page == 'teams' %}bg-slate-800 text-orange-500{% else %}text-gray-300{% endif %}">Equipos</a>
+                        <a href="/seasons" class="px-2 py-2 rounded-md text-xs font-medium hover:bg-slate-800 {% if active_page == 'seasons' %}bg-slate-800 text-orange-500{% else %}text-gray-300{% endif %}">Temporadas</a>
+                        <a href="/leaders" class="px-2 py-2 rounded-md text-xs font-medium hover:bg-slate-800 {% if active_page == 'leaders' %}bg-slate-800 text-orange-500{% else %}text-gray-300{% endif %}">Líderes</a>
+                        <a href="/games" class="px-2 py-2 rounded-md text-xs font-medium hover:bg-slate-800 {% if active_page == 'games' %}bg-slate-800 text-orange-500{% else %}text-gray-300{% endif %}">Partidos</a>
+                        <a href="/streaks" class="px-2 py-2 rounded-md text-xs font-medium hover:bg-slate-800 {% if active_page == 'streaks' %}bg-slate-800 text-orange-500{% else %}text-gray-300{% endif %}">Rachas</a>
+                        <a href="/outliers" class="px-2 py-2 rounded-md text-xs font-medium hover:bg-slate-800 {% if active_page == 'outliers' %}bg-slate-800 text-orange-500{% else %}text-gray-300{% endif %}">Outliers</a>
+                        <a href="/pencil" class="px-2 py-2 rounded-md text-xs font-medium hover:bg-slate-800 {% if active_page == 'pencil' %}bg-slate-800 text-orange-500{% else %}text-gray-300{% endif %}">Lápiz</a>
                     </div>
                 </div>
                 
                 <!-- Theme Toggle & Admin & Mobile Menu Button -->
-                <div class="flex items-center space-x-2">
+                <div class="flex items-center space-x-1 md:space-x-2">
                     <!-- Theme Toggle Button -->
-                    <button id="theme-toggle" type="button" class="p-2 rounded-md text-gray-400 hover:text-white hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-600" title="Cambiar tema">
-                        <!-- Sun icon (shown in dark mode) -->
+                    <button id="theme-toggle" type="button" class="p-2 rounded-md text-gray-400 hover:text-white hover:bg-slate-800 focus:outline-none" title="Cambiar tema">
                         <svg id="theme-icon-light" class="hidden h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
                         </svg>
-                        <!-- Moon icon (shown in light mode) -->
                         <svg id="theme-icon-dark" class="hidden h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
                         </svg>
-                        <!-- Auto icon (shown in auto mode) -->
                         <svg id="theme-icon-auto" class="hidden h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                         </svg>
                     </button>
 
                     <!-- Admin Link -->
-                    <a href="/admin/ingest" class="p-2 rounded-md text-gray-400 hover:text-white hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-600 {% if active_page == 'admin' %}text-orange-500 bg-slate-800{% endif %}" title="Administración">
+                    <a href="/admin/ingest" class="p-2 rounded-md text-gray-400 hover:text-white hover:bg-slate-800 {% if active_page == 'admin' %}text-orange-500 bg-slate-800{% endif %}" title="Administración">
                         <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -123,8 +139,8 @@
                     </a>
                     
                     <!-- Mobile Menu Button -->
-                    <div class="-mr-2 flex md:hidden">
-                        <button type="button" onclick="document.getElementById('mobile-menu').classList.toggle('hidden')" class="bg-slate-800 inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-white hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white">
+                    <div class="-mr-2 flex xl:hidden">
+                        <button type="button" onclick="document.getElementById('mobile-menu').classList.toggle('hidden')" class="bg-slate-800 inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-white hover:bg-slate-700">
                             <span class="sr-only">Open main menu</span>
                             <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
@@ -136,23 +152,23 @@
         </div>
 
         <!-- Mobile Menu -->
-        <div class="hidden md:hidden" id="mobile-menu">
+        <div class="hidden xl:hidden bg-slate-900 border-t border-slate-800" id="mobile-menu">
             <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-                <a href="/" class="block px-3 py-2 rounded-md text-base font-medium text-white hover:bg-slate-700">Inicio</a>
-                <a href="/players" class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-slate-700">Jugadores</a>
-                <a href="/teams" class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-slate-700">Equipos</a>
-                <a href="/seasons" class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-slate-700">Temporadas</a>
-                <a href="/leaders" class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-slate-700">Líderes</a>
-                <a href="/games" class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-slate-700">Partidos</a>
-                <a href="/streaks" class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-slate-700">Rachas</a>
-                <a href="/outliers" class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-slate-700">Outliers</a>
-                <a href="/pencil" class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-slate-700">Alto el lápiz</a>
+                <a href="/" class="block px-3 py-3 rounded-md text-base font-medium {% if active_page == 'home' %}text-orange-500 bg-slate-800{% else %}text-white hover:bg-slate-800{% endif %}">Inicio</a>
+                <a href="/players" class="block px-3 py-3 rounded-md text-base font-medium {% if active_page == 'players' %}text-orange-500 bg-slate-800{% else %}text-gray-300 hover:text-white hover:bg-slate-800{% endif %}">Jugadores</a>
+                <a href="/teams" class="block px-3 py-3 rounded-md text-base font-medium {% if active_page == 'teams' %}text-orange-500 bg-slate-800{% else %}text-gray-300 hover:text-white hover:bg-slate-800{% endif %}">Equipos</a>
+                <a href="/seasons" class="block px-3 py-3 rounded-md text-base font-medium {% if active_page == 'seasons' %}text-orange-500 bg-slate-800{% else %}text-gray-300 hover:text-white hover:bg-slate-800{% endif %}">Temporadas</a>
+                <a href="/leaders" class="block px-3 py-3 rounded-md text-base font-medium {% if active_page == 'leaders' %}text-orange-500 bg-slate-800{% else %}text-gray-300 hover:text-white hover:bg-slate-800{% endif %}">Líderes</a>
+                <a href="/games" class="block px-3 py-3 rounded-md text-base font-medium {% if active_page == 'games' %}text-orange-500 bg-slate-800{% else %}text-gray-300 hover:text-white hover:bg-slate-800{% endif %}">Partidos</a>
+                <a href="/streaks" class="block px-3 py-3 rounded-md text-base font-medium {% if active_page == 'streaks' %}text-orange-500 bg-slate-800{% else %}text-gray-300 hover:text-white hover:bg-slate-800{% endif %}">Rachas</a>
+                <a href="/outliers" class="block px-3 py-3 rounded-md text-base font-medium {% if active_page == 'outliers' %}text-orange-500 bg-slate-800{% else %}text-gray-300 hover:text-white hover:bg-slate-800{% endif %}">Outliers</a>
+                <a href="/pencil" class="block px-3 py-3 rounded-md text-base font-medium {% if active_page == 'pencil' %}text-orange-500 bg-slate-800{% else %}text-gray-300 hover:text-white hover:bg-slate-800{% endif %}">Alto el lápiz</a>
             </div>
         </div>
     </nav>
 
     <!-- Content -->
-    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <main class="flex-grow max-w-7xl w-full mx-auto px-2 sm:px-4 lg:px-8 py-4 md:py-8">
         {% block content %}{% endblock %}
     </main>
 

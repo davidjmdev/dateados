@@ -8,72 +8,78 @@
     
     <!-- Scoreboard -->
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-        <div class="bg-slate-900 px-6 py-8">
-            <div class="flex items-center justify-between max-w-4xl mx-auto">
+        <div class="bg-slate-900 px-4 md:px-6 py-6 md:py-8">
+            <div class="flex flex-col md:flex-row items-center justify-between max-w-4xl mx-auto gap-6 md:gap-4">
                 <!-- Away Team -->
-                <div class="flex flex-col items-center text-white w-1/3">
-                    <img src="https://cdn.nba.com/logos/nba/{{ game.away_team_id }}/primary/L/logo.svg" 
-                         alt="" 
-                         onerror="this.onerror=null; this.src='https://via.placeholder.com/100'"
-                         class="h-20 w-20 object-contain mb-4 bg-white rounded-full p-2">
-                    <h2 class="text-2xl font-bold text-center">{{ game.away_team }}</h2>
-                    <p class="text-gray-400 text-sm">Away</p>
+                <div class="flex flex-row md:flex-col items-center text-white w-full md:w-1/3 justify-between md:justify-center px-4 md:px-0 order-2 md:order-1">
+                    <div class="flex flex-row md:flex-col items-center gap-4 md:gap-0">
+                        <img src="https://cdn.nba.com/logos/nba/{{ game.away_team_id }}/primary/L/logo.svg" 
+                             alt="" 
+                             onerror="this.onerror=null; this.src='https://via.placeholder.com/100'"
+                             class="h-12 w-12 md:h-20 md:w-20 object-contain md:mb-4 bg-white rounded-full p-1.5 md:p-2">
+                        <h2 class="text-xl md:text-2xl font-bold text-left md:text-center">{{ game.away_team }}</h2>
+                    </div>
+                    <p class="text-gray-400 text-sm md:hidden font-bold">{{ game.away_score }}</p>
+                    <p class="text-gray-400 text-sm hidden md:block">Visitante</p>
                 </div>
                 
-                <!-- Score -->
-                <div class="flex flex-col items-center text-white w-1/3">
-                    <div class="text-sm font-medium text-gray-400 mb-2">{{ game.date }}</div>
-                    <div class="text-5xl font-bold tracking-widest flex items-center">
+                <!-- Score & Date -->
+                <div class="flex flex-col items-center text-white w-full md:w-1/3 order-1 md:order-2 border-b border-slate-800 md:border-0 pb-4 md:pb-0">
+                    <div class="text-xs md:text-sm font-medium text-gray-400 mb-1 md:mb-2">{{ game.date }}</div>
+                    <div class="text-3xl md:text-5xl font-bold tracking-widest hidden md:flex items-center">
                         <span>{{ game.away_score }}</span>
                         <span class="mx-4 text-2xl text-gray-600">-</span>
                         <span>{{ game.home_score }}</span>
                     </div>
-                    <div class="mt-2 text-xs uppercase tracking-wide bg-slate-800 px-3 py-1 rounded text-gray-300">
+                    <div class="mt-1 md:mt-2 text-[10px] md:text-xs uppercase tracking-wide bg-slate-800 px-3 py-1 rounded text-gray-300">
                         Final
                     </div>
                 </div>
                 
                 <!-- Home Team -->
-                <div class="flex flex-col items-center text-white w-1/3">
-                    <img src="https://cdn.nba.com/logos/nba/{{ game.home_team_id }}/primary/L/logo.svg" 
-                         alt="" 
-                         onerror="this.onerror=null; this.src='https://via.placeholder.com/100'"
-                         class="h-20 w-20 object-contain mb-4 bg-white rounded-full p-2">
-                    <h2 class="text-2xl font-bold text-center">{{ game.home_team }}</h2>
-                    <p class="text-gray-400 text-sm">Home</p>
+                <div class="flex flex-row md:flex-col items-center text-white w-full md:w-1/3 justify-between md:justify-center px-4 md:px-0 order-3 md:order-3">
+                    <div class="flex flex-row md:flex-col items-center gap-4 md:gap-0">
+                        <img src="https://cdn.nba.com/logos/nba/{{ game.home_team_id }}/primary/L/logo.svg" 
+                             alt="" 
+                             onerror="this.onerror=null; this.src='https://via.placeholder.com/100'"
+                             class="h-12 w-12 md:h-20 md:w-20 object-contain md:mb-4 bg-white rounded-full p-1.5 md:p-2">
+                        <h2 class="text-xl md:text-2xl font-bold text-left md:text-center">{{ game.home_team }}</h2>
+                    </div>
+                    <p class="text-gray-400 text-sm md:hidden font-bold">{{ game.home_score }}</p>
+                    <p class="text-gray-400 text-sm hidden md:block">Local</p>
                 </div>
             </div>
         </div>
         
         <!-- Quarter Scores -->
         {% if game.quarter_scores and game.quarter_scores.away and game.quarter_scores.home and game.quarter_scores.away|length > 0 %}
-        <div class="bg-gray-50 dark:bg-gray-700 px-6 py-4 border-b border-gray-100 dark:border-gray-600 flex justify-center">
-            <table class="text-sm">
+        <div class="bg-gray-50 dark:bg-gray-700 px-4 md:px-6 py-4 border-b border-gray-100 dark:border-gray-600 overflow-x-auto custom-scrollbar">
+            <table class="text-xs md:text-sm mx-auto">
                 <thead>
                     <tr>
-                        <th class="px-4 py-2 text-gray-500 dark:text-gray-400 font-medium text-left">Equipo</th>
+                        <th class="px-2 md:px-4 py-2 text-gray-500 dark:text-gray-400 font-medium text-left">Equipo</th>
                         {% for i in range(game.quarter_scores.away|length) %}
-                        <th class="px-4 py-2 text-gray-500 dark:text-gray-400 font-medium text-center">
+                        <th class="px-2 md:px-4 py-2 text-gray-500 dark:text-gray-400 font-medium text-center">
                             {% if i < 4 %}Q{{ i+1 }}{% else %}OT{{ i-3 }}{% endif %}
                         </th>
                         {% endfor %}
-                        <th class="px-4 py-2 text-gray-900 dark:text-gray-100 font-bold text-center">T</th>
+                        <th class="px-2 md:px-4 py-2 text-gray-900 dark:text-gray-100 font-bold text-center border-l border-gray-200 dark:border-gray-600">T</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
                     <tr>
-                        <td class="px-4 py-2 font-medium text-gray-900 dark:text-gray-100">{{ game.away_team }}</td>
+                        <td class="px-2 md:px-4 py-2 font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap">{{ game.away_team }}</td>
                         {% for score in game.quarter_scores.away %}
-                        <td class="px-4 py-2 text-center text-gray-600 dark:text-gray-400">{{ score }}</td>
+                        <td class="px-2 md:px-4 py-2 text-center text-gray-600 dark:text-gray-400">{{ score }}</td>
                         {% endfor %}
-                        <td class="px-4 py-2 text-center font-bold text-gray-900 dark:text-gray-100">{{ game.away_score }}</td>
+                        <td class="px-2 md:px-4 py-2 text-center font-bold text-gray-900 dark:text-gray-100 border-l border-gray-200 dark:border-gray-600">{{ game.away_score }}</td>
                     </tr>
                     <tr>
-                        <td class="px-4 py-2 font-medium text-gray-900 dark:text-gray-100">{{ game.home_team }}</td>
+                        <td class="px-2 md:px-4 py-2 font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap">{{ game.home_team }}</td>
                         {% for score in game.quarter_scores.home %}
-                        <td class="px-4 py-2 text-center text-gray-600 dark:text-gray-400">{{ score }}</td>
+                        <td class="px-2 md:px-4 py-2 text-center text-gray-600 dark:text-gray-400">{{ score }}</td>
                         {% endfor %}
-                        <td class="px-4 py-2 text-center font-bold text-gray-900 dark:text-gray-100">{{ game.home_score }}</td>
+                        <td class="px-2 md:px-4 py-2 text-center font-bold text-gray-900 dark:text-gray-100 border-l border-gray-200 dark:border-gray-600">{{ game.home_score }}</td>
                     </tr>
                 </tbody>
             </table>
@@ -82,10 +88,10 @@
     </div>
 
     {% macro render_stats_table(stats, totals) %}
-    <div class="overflow-x-auto">
-        <table class="min-w-full text-sm divide-y divide-gray-200 dark:divide-gray-700">
+    <div class="table-container">
+        <table class="min-w-full text-[10px] md:text-sm divide-y divide-gray-200 dark:divide-gray-700">
             {{ stats_table_header([
-                {'label': 'Jugador', 'class': 'text-left sticky left-0 bg-gray-50 dark:bg-gray-700'},
+                {'label': 'Jugador', 'class': 'text-left'},
                 {'label': 'MIN'},
                 {'label': 'PTS', 'highlight': True},
                 {'label': 'REB'},
@@ -102,8 +108,8 @@
             <tbody class="divide-y divide-gray-100 dark:divide-gray-700 bg-white dark:bg-gray-800">
                 {% for stat in stats %}
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                    <td class="px-4 py-2 sticky left-0 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 whitespace-nowrap">
-                        <a href="/players/{{ stat.player_id }}" class="font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">
+                    <td class="px-3 md:px-4 py-2 sticky-column whitespace-nowrap">
+                        <a href="/players/{{ stat.player_id }}" class="font-bold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">
                             {{ stat.player }}
                         </a>
                     </td>
@@ -129,7 +135,6 @@
             {% if totals %}
             <tfoot class="border-t-2 border-gray-300 dark:border-gray-500">
                 {{ summary_row('TOTALES', [
-                    {'value': '-'},
                     {'value': totals.total_pts, 'highlight': True},
                     {'value': totals.total_reb},
                     {'value': totals.total_ast},
@@ -141,7 +146,7 @@
                     {'value': totals.total_fg3m ~ '/' ~ totals.total_fg3a},
                     {'value': totals.total_ftm ~ '/' ~ totals.total_fta},
                     {'value': '-'}
-                ]) }}
+                ], colspan=2) }}
             </tfoot>
             {% endif %}
         </table>
