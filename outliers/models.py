@@ -264,6 +264,9 @@ class StreakRecord(Base):
     last_game = relationship('Game', foreign_keys=[last_game_id])
     
     __table_args__ = (
+        # Un jugador no puede empezar la misma racha dos veces (unicidad física del evento)
+        UniqueConstraint('player_id', 'streak_type', 'competition_type', 'started_at', name='uq_streak_event'),
+        
         # Solo puede haber una racha activa por jugador, tipo y competición
         Index(
             'uq_active_streak_player_type_comp', 

@@ -1,4 +1,4 @@
-"""Rutas para el juego 'Alto el lápiz'.
+"""Rutas para el juego 'Alto el lápiz' (Contest).
 
 Este módulo define los endpoints para la interfaz web del juego
 y las validaciones vía API.
@@ -11,22 +11,22 @@ from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from db.connection import get_session
-from web.pencil_logic import PencilGameLogic
+from web.contest_logic import ContestGameLogic
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 templates = Jinja2Templates(directory="web/templates")
-logic = PencilGameLogic()
+logic = ContestGameLogic()
 
-@router.get("/pencil")
-async def pencil_index(request: Request):
+@router.get("/contest")
+async def contest_index(request: Request):
     """Página principal del juego Alto el lápiz."""
-    return templates.TemplateResponse("pencil/index.html", {
+    return templates.TemplateResponse("contest/index.html", {
         "request": request,
-        "active_page": "pencil"
+        "active_page": "contest"
     })
 
-@router.get("/api/pencil/validate")
+@router.get("/api/contest/validate")
 async def validate_player(
     category: str, 
     letter: str, 
@@ -43,7 +43,7 @@ async def validate_player(
         result = logic.validate_player(session, name, category, letter)
         return result
 
-@router.get("/api/pencil/hint")
+@router.get("/api/contest/hint")
 async def get_hint(
     category: str, 
     letter: str

@@ -5,10 +5,10 @@
 
 {% block content %}
 <div class="space-y-8">
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 flex items-center justify-between">
+    <div class="nba-card p-6 flex items-center justify-between">
         <div>
-            <h1 class="text-2xl font-black text-gray-900 dark:text-gray-100 tracking-tight">Panel de Control de Datos</h1>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Sincroniza la base de datos con los últimos resultados oficiales.</p>
+            <h1 class="text-2xl font-black text-slate-900 dark:text-white tracking-tight font-display">Panel de Control de Datos</h1>
+            <p class="text-sm text-slate-500 dark:text-zinc-400 mt-1 font-medium">Sincroniza la base de datos con los últimos resultados oficiales.</p>
         </div>
         <div id="status-badge">
             {% if status and status.status == 'running' %}
@@ -27,8 +27,8 @@
     {% call card_container(title="Sincronización Inteligente") %}
         <div class="p-8 space-y-6">
             <div class="flex flex-col items-center text-center space-y-4">
-                <div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-full">
-                    <svg class="w-12 h-12 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="p-4 bg-orange-50 dark:bg-white/5 rounded-full">
+                    <svg class="w-12 h-12 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
                 </div>
@@ -43,13 +43,13 @@
                     <button id="start-ingest-btn" 
                             onclick="startIngestion(false)"
                             {% if status and status.status == 'running' %}disabled{% endif %}
-                            class="px-8 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-blue-500/20 active:scale-95">
+                            class="px-8 py-3 bg-orange-600 hover:bg-orange-500 disabled:bg-gray-400 text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-orange-500/20 active:scale-95">
                         Iniciar Sincronización
                     </button>
                     <button id="reset-ingest-btn" 
                             onclick="startIngestion(true)"
                             {% if status and status.status == 'running' %}disabled{% endif %}
-                            class="px-6 py-3 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-xl font-bold transition-all active:scale-95">
+                            class="px-6 py-3 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-600 dark:text-zinc-400 rounded-xl font-bold transition-all active:scale-95">
                         Reiniciar desde cero
                     </button>
                 </div>
@@ -59,24 +59,24 @@
             <div id="progress-section" class="{% if not status or status.status != 'running' %}hidden{% endif %} space-y-4 border-t border-gray-100 dark:border-gray-700 pt-8">
                 <div class="flex justify-between items-end">
                     <div class="space-y-1">
-                        <span class="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">Progreso actual</span>
-                        <p id="progress-message" class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        <span class="text-[10px] font-bold text-orange-600 dark:text-orange-400 uppercase tracking-widest">Progreso actual</span>
+                        <p id="progress-message" class="text-sm font-medium text-slate-700 dark:text-zinc-300">
                             {{ status.message if status else 'Preparando...' }}
                         </p>
                     </div>
-                    <span id="progress-percent" class="text-2xl font-black text-gray-900 dark:text-gray-100">
+                    <span id="progress-percent" class="text-2xl font-black text-slate-900 dark:text-white">
                         {{ status.progress if status else '0' }}%
                     </span>
                 </div>
                 
-                <div class="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-3 overflow-hidden shadow-inner">
+                <div class="w-full bg-slate-100 dark:bg-zinc-800 rounded-full h-3 overflow-hidden shadow-inner">
                     <div id="progress-bar" 
-                         class="bg-blue-600 h-full transition-all duration-500 rounded-full shadow-lg shadow-blue-500/50" 
+                         class="bg-orange-600 h-full transition-all duration-500 rounded-full shadow-lg shadow-orange-500/50" 
                          style="width: {{ status.progress if status else '0' }}%">
                     </div>
                 </div>
 
-                <div class="bg-black rounded-xl border border-gray-800 shadow-2xl overflow-hidden">
+                <div class="bg-black rounded-2xl border border-white/5 shadow-2xl overflow-hidden">
                     <div id="log-console" class="text-[11px] font-mono p-6 h-80 overflow-y-auto custom-scrollbar bg-black text-gray-300 leading-relaxed">
                         <p class="text-gray-600">// Terminal lista. Esperando eventos...</p>
                     </div>
@@ -105,7 +105,7 @@
                     updateBadge('running');
                     // Limpiar consola al iniciar nueva
                     const consoleMsg = clean ? '>> Deteniendo procesos anteriores y reiniciando...' : '>> Iniciando nueva sesión de ingesta...';
-                    document.getElementById('log-console').innerHTML = `<p class="text-blue-400 font-bold">${consoleMsg}</p>`;
+                    document.getElementById('log-console').innerHTML = `<p class="text-green-400 font-bold">${consoleMsg}</p>`;
                     if (clean) lastLogId = 0;
                     startPolling();
                 } else {
@@ -149,7 +149,7 @@
                         if (log.level === 'WARNING') levelClass = 'text-amber-500';
                         if (log.level === 'INFO') levelClass = 'text-green-400';
 
-                        p.innerHTML = `<span class="text-gray-600">[${ts}]</span> <span class="${levelClass}">${log.level.padEnd(7)}</span> <span class="text-blue-400">${log.module}:</span> ${log.message}`;
+                        p.innerHTML = `<span class="text-gray-600">[${ts}]</span> <span class="${levelClass}">${log.level.padEnd(7)}</span> <span class="text-orange-400">${log.module}:</span> ${log.message}`;
                         console.appendChild(p);
                         lastLogId = log.id;
                         hasNew = true;
@@ -183,10 +183,10 @@
                     updateBadge(data.status);
                     
                     if (data.status === 'completed') {
-                        bar.classList.replace('bg-blue-600', 'bg-green-500');
+                        bar.classList.replace('bg-orange-600', 'bg-green-500');
                         clearInterval(pollInterval);
                     } else if (data.status === 'failed') {
-                        bar.classList.replace('bg-blue-600', 'bg-red-500');
+                        bar.classList.replace('bg-orange-600', 'bg-red-500');
                         clearInterval(pollInterval);
                     }
                 }
@@ -208,10 +208,10 @@
 
     function getBadgeColor(type) {
         const colors = {
-            'default': 'gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300',
+            'default': 'slate-100 dark:bg-zinc-800 text-slate-800 dark:text-zinc-300',
             'success': 'green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300',
             'error': 'red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300',
-            'info': 'blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300'
+            'info': 'orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-300'
         };
         return colors[type] || colors.default;
     }

@@ -1,4 +1,4 @@
-"""Lógica de negocio para el juego 'Alto el lápiz'.
+"""Lógica de negocio para el juego 'Alto el lápiz' (Contest).
 
 Este módulo contiene las funciones para validar y filtrar jugadores
 según las categorías especiales del juego.
@@ -30,8 +30,8 @@ EUROPEAN_COUNTRIES = [
     'Czechia'
 ]
 
-class PencilGameLogic:
-    """Maneja las reglas y validaciones del juego Alto el lápiz."""
+class ContestGameLogic:
+    """Maneja las reglas y validaciones del juego Alto el lápiz (Contest)."""
 
     @staticmethod
     def get_players_by_letter(session: Session, letter: str) -> List[Player]:

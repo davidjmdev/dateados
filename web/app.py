@@ -31,7 +31,7 @@ from web.routes import teams
 from web.routes import seasons
 from web.routes import leaders
 from web.routes import games
-from web.routes import pencil
+from web.routes import contest
 from web.routes import admin
 from web.routes import outliers
 from web.routes import streaks
@@ -43,7 +43,7 @@ app.include_router(teams.router)
 app.include_router(seasons.router)
 app.include_router(leaders.router)
 app.include_router(games.router)
-app.include_router(pencil.router)
+app.include_router(contest.router)
 app.include_router(admin.router)
 app.include_router(outliers.router)
 app.include_router(streaks.router)

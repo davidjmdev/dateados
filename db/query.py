@@ -411,35 +411,77 @@ def get_top_players(stat: str = 'pts', season: Optional[str] = None, limit: int 
 
 
 def get_team_record(team_id: int, season: Optional[str] = None, session: Optional[Session] = None) -> Dict[str, Any]:
-    """Obtiene el récord de un equipo (victorias/derrotas)."""
+    """Obtiene el récord de un equipo y su posición en la conferencia."""
     own_session = False
     if session is None:
         session = get_session()
         own_session = True
     try:
-        query = session.query(Game).filter(
-            Game.status == 3,
-            or_(Game.home_team_id == team_id, Game.away_team_id == team_id)
-        )
-        if season: 
+        # 1. Obtener info del equipo (conferencia)
+        team = session.query(Team).filter(Team.id == team_id).first()
+        if not team:
+            return {}
+        
+        conference = team.conference
+        
+        # 2. Obtener todos los partidos de temporada regular para el cálculo de standings
+        query = session.query(Game).filter(Game.status == 3, Game.rs == True)
+        if season:
             query = query.filter(Game.season == season)
-            
+        
         games = query.all()
-        wins, losses = 0, 0
-        for game in games:
-            if game.winner_team_id == team_id:
-                wins += 1
+        
+        # 3. Calcular victorias/derrotas para todos los equipos
+        stats = {} # team_id -> {'wins': 0, 'losses': 0}
+        
+        for g in games:
+            t1, t2 = g.home_team_id, g.away_team_id
+            if t1 not in stats: stats[t1] = {'wins': 0, 'losses': 0}
+            if t2 not in stats: stats[t2] = {'wins': 0, 'losses': 0}
+            
+            if g.winner_team_id == t1:
+                stats[t1]['wins'] += 1
+                stats[t2]['losses'] += 1
             else:
-                losses += 1
+                stats[t2]['wins'] += 1
+                stats[t1]['losses'] += 1
+        
+        # 4. Obtener equipos de la misma conferencia
+        conf_teams = session.query(Team.id).filter(Team.conference == conference).all()
+        conf_team_ids = {t.id for t in conf_teams}
+        
+        # 5. Construir tabla de clasificación de la conferencia
+        standings = []
+        for tid in conf_team_ids:
+            rec = stats.get(tid, {'wins': 0, 'losses': 0})
+            w, l = rec['wins'], rec['losses']
+            pct = w / (w + l) if (w + l) > 0 else 0.0
+            standings.append({'team_id': tid, 'wins': w, 'losses': l, 'pct': pct})
+            
+        # 6. Ordenar por PCT descendente
+        standings.sort(key=lambda x: x['pct'], reverse=True)
+        
+        # 7. Extraer datos del equipo objetivo
+        target_rank = None
+        target_rec = stats.get(team_id, {'wins': 0, 'losses': 0})
+        
+        for i, s in enumerate(standings):
+            if s['team_id'] == team_id:
+                target_rank = i + 1
+                break
                 
+        wins = target_rec['wins']
+        losses = target_rec['losses']
         total = wins + losses
+        
         return {
-            'team_id': team_id, 
-            'season': season, 
-            'wins': wins, 
-            'losses': losses, 
-            'total': total, 
-            'win_percentage': wins / total if total > 0 else 0.0
+            'team_id': team_id,
+            'season': season,
+            'wins': wins,
+            'losses': losses,
+            'total': total,
+            'win_percentage': wins / total if total > 0 else 0.0,
+            'conf_rank': target_rank
         }
     finally:
         if own_session: 
@@ -477,6 +519,8 @@ def get_game_details(game_id: str, session: Optional[Session] = None) -> Optiona
                 'season': str(game.season), 
                 'home_team': str(game.home_team.full_name) if game.home_team else f"Team {game.home_team_id}", 
                 'away_team': str(game.away_team.full_name) if game.away_team else f"Team {game.away_team_id}", 
+                'home_team_abbr': str(game.home_team.abbreviation) if game.home_team else "T1",
+                'away_team_abbr': str(game.away_team.abbreviation) if game.away_team else "T2",
                 'home_team_id': int(game.home_team_id), 
                 'away_team_id': int(game.away_team_id), 
                 'home_score': int(game.home_score) if game.home_score is not None else 0, 

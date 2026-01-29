@@ -40,28 +40,33 @@
 
 {% block content %}
 <div class="space-y-6">
-    <!-- Header -->
-    <div class="text-center space-y-1">
-        <h1 class="text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white sm:text-4xl">
-            Alto el lápiz <span class="text-orange-500">3+1</span>
-        </h1>
-        <p class="text-sm text-gray-500 dark:text-gray-400 max-w-xl mx-auto">
-            El nombre o apellido del jugador debe empezar por la letra elegida.
-        </p>
+    <!-- Hero Section -->
+    <div class="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/5 p-8 md:p-12 shadow-xl dark:shadow-2xl transition-colors duration-300">
+        <div class="absolute inset-0 bg-gradient-to-l from-orange-500/10 dark:from-orange-900/20 to-transparent opacity-50"></div>
+        <div class="absolute inset-0 bg-grid-slate-900/[0.02] dark:bg-grid-white/[0.02] bg-[length:30px_30px]"></div>
+        
+        <div class="relative z-10 text-center space-y-2">
+            <h1 class="text-4xl md:text-6xl font-display font-black text-slate-900 dark:text-white tracking-tighter">
+                Contienda: <span class="text-orange-500">Alto el lápiz</span>
+            </h1>
+            <p class="text-slate-600 dark:text-zinc-400 max-w-xl mx-auto text-lg font-medium">
+                Demuestra tus conocimientos NBA. El nombre o apellido del jugador debe empezar por la letra elegida.
+            </p>
+        </div>
     </div>
 
     <!-- Letter Selector - Absolute Single Row -->
-    {% call card_container(class="p-2 sm:p-3") %}
-        <div class="flex items-center justify-between gap-0.5 overflow-x-auto no-scrollbar">
+    <div class="overflow-x-auto overflow-y-hidden custom-scrollbar bg-white/50 dark:bg-white/5 backdrop-blur-sm rounded-full p-1 border border-slate-200 dark:border-white/5">
+        <nav class="flex w-full space-x-0.5 min-w-max">
             {% for char in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" %}
             <button onclick="selectLetter('{{ char }}')" 
                     id="btn-{{ char }}"
-                    class="letter-btn flex-1 min-w-[20px] h-7 sm:h-9 flex items-center justify-center rounded border border-gray-100 dark:border-gray-700 font-bold hover:border-orange-500 hover:text-orange-500 dark:hover:border-orange-500 transition-all">
+                    class="flex-1 min-w-[28px] h-8 flex items-center justify-center rounded-full text-[10px] font-black border border-transparent hover:border-orange-500/50 hover:text-orange-500 transition-all uppercase">
                 {{ char }}
             </button>
             {% endfor %}
-        </div>
-    {% endcall %}
+        </nav>
+    </div>
 
     <!-- Game Board -->
     <div id="game-board" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 opacity-50 pointer-events-none transition-opacity duration-500">
@@ -78,12 +83,12 @@
         ] %}
 
         {% for cat in categories %}
-        <div class="category-card bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 space-y-3 flex flex-col">
-            <div class="flex items-center gap-2">
-                <span class="text-xl">{{ cat.icon }}</span>
+        <div class="category-card nba-card p-4 space-y-3 flex flex-col hover:border-orange-500/30">
+            <div class="flex items-center gap-3">
+                <span class="text-2xl">{{ cat.icon }}</span>
                 <div class="min-w-0">
-                    <h3 class="font-bold text-gray-900 dark:text-white text-sm truncate">{{ cat.name }}</h3>
-                    <p class="text-[10px] text-gray-400 truncate">{{ cat.desc }}</p>
+                    <h3 class="font-bold text-slate-900 dark:text-white text-sm truncate font-display">{{ cat.name }}</h3>
+                    <p class="text-[10px] text-slate-500 dark:text-zinc-500 uppercase font-bold tracking-tight truncate">{{ cat.desc }}</p>
                 </div>
             </div>
 
@@ -92,21 +97,21 @@
                        id="input-{{ cat.id }}"
                        onkeypress="if(event.key === 'Enter') validate('{{ cat.id }}')"
                        placeholder="Nombre..."
-                       class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all text-xs">
+                       class="w-full px-3 py-2 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all text-xs text-slate-900 dark:text-white">
                 <button onclick="validate('{{ cat.id }}')"
-                        class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-orange-500">
+                        class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-orange-500 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414l-8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
                     </svg>
                 </button>
             </div>
 
-            <div id="result-{{ cat.id }}" class="min-h-[32px] flex items-center justify-center text-xs font-medium rounded-lg"></div>
+            <div id="result-{{ cat.id }}" class="min-h-[32px] flex items-center justify-center text-xs font-bold rounded-lg"></div>
 
-            <div class="mt-1 space-y-2 border-t border-gray-50 dark:border-gray-700/50 pt-3">
-                <h4 class="text-[9px] uppercase tracking-wider font-bold text-gray-400">Top 10 Sugerencias</h4>
-                <div id="hints-{{ cat.id }}" class="text-[11px] space-y-0.5 text-gray-600 dark:text-gray-400">
-                    <div class="text-gray-400 italic">...</div>
+            <div class="mt-1 space-y-2 border-t border-slate-100 dark:border-white/5 pt-3">
+                <h4 class="text-[9px] uppercase tracking-widest font-black text-slate-400">Sugerencias</h4>
+                <div id="hints-{{ cat.id }}" class="text-[10px] space-y-0.5 text-slate-600 dark:text-zinc-400 font-medium">
+                    <div class="text-slate-400 italic">...</div>
                 </div>
             </div>
         </div>
@@ -115,8 +120,8 @@
 
     <!-- Reset -->
     <div class="flex justify-center pb-4">
-        <button onclick="resetGame()" class="px-5 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-full text-xs font-semibold transition-colors">
-            Reiniciar
+        <button onclick="resetGame()" class="px-6 py-2 bg-slate-900 dark:bg-white text-white dark:text-black font-bold rounded-full text-xs transition-all hover:scale-105 active:scale-95 shadow-lg shadow-slate-900/10">
+            Reiniciar Juego
         </button>
     </div>
 </div>
@@ -128,8 +133,13 @@
 
     async function selectLetter(letter) {
         currentLetter = letter;
-        document.querySelectorAll('.letter-btn').forEach(btn => btn.classList.remove('active'));
-        document.getElementById('btn-' + letter).classList.add('active');
+        document.querySelectorAll('button[id^="btn-"]').forEach(btn => {
+            btn.classList.remove('bg-orange-500', 'text-white', 'shadow-lg', 'shadow-orange-500/20');
+            btn.classList.add('hover:border-orange-500/50', 'hover:text-orange-500');
+        });
+        const activeBtn = document.getElementById('btn-' + letter);
+        activeBtn.classList.add('bg-orange-500', 'text-white', 'shadow-lg', 'shadow-orange-500/20');
+        activeBtn.classList.remove('hover:border-orange-500/50', 'hover:text-orange-500');
         document.getElementById('game-board').classList.remove('opacity-50', 'pointer-events-none');
         
         document.querySelectorAll('input').forEach(input => {
@@ -145,10 +155,10 @@
         
         categories.forEach(async (catId) => {
             const hintDiv = document.getElementById('hints-' + catId);
-            hintDiv.innerHTML = '<div class="animate-pulse space-y-1"><div class="h-1.5 bg-gray-100 dark:bg-gray-700 rounded w-full"></div></div>';
+            hintDiv.innerHTML = '<div class="animate-pulse space-y-1"><div class="h-1.5 bg-slate-100 dark:bg-white/5 rounded w-full"></div></div>';
             
             try {
-                const response = await fetch(`/api/pencil/hint?category=${catId}&letter=${letter}`);
+                const response = await fetch(`/api/contest/hint?category=${catId}&letter=${letter}`);
                 const data = await response.json();
                 
                 if (data.hints && data.hints.length > 0) {
@@ -180,7 +190,7 @@
         resultDiv.className = 'min-h-[32px] flex items-center justify-center text-xs font-medium rounded-lg text-gray-500';
 
         try {
-            const response = await fetch(`/api/pencil/validate?category=${categoryId}&letter=${currentLetter}&name=${encodeURIComponent(name)}`);
+            const response = await fetch(`/api/contest/validate?category=${categoryId}&letter=${currentLetter}&name=${encodeURIComponent(name)}`);
             const data = await response.json();
             
             if (data.valid) {
@@ -203,7 +213,10 @@
 
     function resetGame() {
         currentLetter = '';
-        document.querySelectorAll('.letter-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('button[id^="btn-"]').forEach(btn => {
+            btn.classList.remove('bg-orange-500', 'text-white', 'shadow-lg', 'shadow-orange-500/20');
+            btn.classList.add('hover:border-orange-500/50', 'hover:text-orange-500');
+        });
         document.getElementById('game-board').classList.add('opacity-50', 'pointer-events-none');
         document.querySelectorAll('input').forEach(input => input.value = '');
         document.querySelectorAll('[id^="result-"]').forEach(res => {

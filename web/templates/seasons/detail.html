@@ -5,34 +5,40 @@
 
 {% block content %}
 <div class="space-y-8">
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 p-4 md:p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <h1 class="text-xl md:text-2xl font-bold text-gray-900 dark:text-gray-100">Temporada {{ season }}</h1>
+    <div class="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/5 p-8 md:p-12 shadow-xl dark:shadow-2xl transition-colors duration-300">
+        <div class="absolute inset-0 bg-gradient-to-l from-orange-500/10 dark:from-orange-900/20 to-transparent opacity-50"></div>
+        <div class="absolute inset-0 bg-grid-slate-900/[0.02] dark:bg-grid-white/[0.02] bg-[length:30px_30px]"></div>
         
-        <div class="flex items-center space-x-4">
-            <span class="text-xs md:text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Temporada:</span>
-            <form method="get" class="flex items-center">
-                <select onchange="window.location.href='/seasons/' + this.value" class="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 text-sm rounded-md focus:ring-blue-500 focus:border-blue-500 block p-1.5 shadow-sm">
+        <div class="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+            <div>
+                <h1 class="text-4xl md:text-5xl font-display font-black text-slate-900 dark:text-white tracking-tighter mb-2">Temporada {{ season }}</h1>
+                <p class="text-slate-600 dark:text-zinc-400 max-w-2xl text-lg font-medium">Resultados, clasificaciones y estadísticas del año.</p>
+            </div>
+            
+            <div class="flex items-center space-x-4 bg-slate-50 dark:bg-white/5 p-4 rounded-2xl border border-slate-200 dark:border-white/5 backdrop-blur-sm">
+                <span class="text-[10px] font-black text-slate-500 dark:text-zinc-400 uppercase tracking-widest">Cambiar Temporada:</span>
+                <select onchange="window.location.href='/seasons/' + this.value" class="bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-gray-100 text-sm rounded-xl focus:ring-2 focus:ring-orange-500 outline-none p-2 shadow-sm font-bold">
                     {% for s in all_seasons %}
                     <option value="{{ s }}" {% if s == season %}selected{% endif %}>{{ s }}</option>
                     {% endfor %}
                 </select>
-            </form>
+            </div>
         </div>
     </div>
 
     <!-- Tabs -->
-    <div class="border-b border-gray-200 dark:border-gray-700 overflow-x-auto custom-scrollbar">
-        <nav class="-mb-px flex space-x-4 md:space-x-8 min-w-max" aria-label="Tabs">
-            <button onclick="switchTab('regular')" id="tab-regular" class="border-blue-500 text-blue-600 dark:text-blue-400 whitespace-nowrap py-4 px-1 border-b-2 font-bold text-xs md:text-sm uppercase tracking-widest">
+    <div class="overflow-x-auto overflow-y-hidden custom-scrollbar bg-white/50 dark:bg-white/5 backdrop-blur-sm rounded-full p-1 mb-6 border border-slate-200 dark:border-white/5">
+        <nav class="flex w-full space-x-1" aria-label="Tabs">
+            <button onclick="switchTab('regular')" id="tab-regular" class="flex-auto px-6 py-2 rounded-full text-xs font-black whitespace-nowrap transition-all bg-orange-500 text-white shadow-lg shadow-orange-500/20 uppercase tracking-widest">
                 Regular
             </button>
             {% if bracket %}
-            <button onclick="switchTab('playoffs')" id="tab-playoffs" class="border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600 whitespace-nowrap py-4 px-1 border-b-2 font-bold text-xs md:text-sm uppercase tracking-widest">
+            <button onclick="switchTab('playoffs')" id="tab-playoffs" class="flex-auto px-6 py-2 rounded-full text-xs font-black whitespace-nowrap transition-all text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 uppercase tracking-widest">
                 Playoffs
             </button>
             {% endif %}
             {% if ist_bracket %}
-            <button onclick="switchTab('ist')" id="tab-ist" class="border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600 whitespace-nowrap py-4 px-1 border-b-2 font-bold text-xs md:text-sm uppercase tracking-widest">
+            <button onclick="switchTab('ist')" id="tab-ist" class="flex-auto px-6 py-2 rounded-full text-xs font-black whitespace-nowrap transition-all text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 uppercase tracking-widest">
                 NBA Cup
             </button>
             {% endif %}
@@ -43,7 +49,7 @@
     <div id="content-regular" class="space-y-8">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
             <!-- Eastern Conference -->
-            {% call card_container(title="Conferencia Este", class="border-blue-100 dark:border-blue-900") %}
+            {% call card_container(title="Conferencia Este", class="border-zinc-200 dark:border-white/10") %}
                 <div class="table-container">
                     <table class="min-w-full text-xs md:text-sm">
                         {{ stats_table_header([
@@ -53,11 +59,11 @@
                             {'label': 'L'},
                             {'label': 'PCT'}
                         ]) }}
-                        <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                        <tbody class="divide-y divide-slate-100 dark:divide-white/5">
                             {% for entry in east_standings %}
-                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition cursor-pointer" onclick="window.location='/teams/{{ entry.team.id }}?season={{ season }}'">
-                                <td class="px-3 md:px-6 py-3 md:py-4 text-gray-500 dark:text-gray-400 font-mono sticky-column">{{ loop.index }}</td>
-                                <td class="px-3 md:px-6 py-3 md:py-4 font-bold text-gray-900 dark:text-gray-100 whitespace-nowrap">
+                            <tr class="hover:bg-slate-50 dark:hover:bg-white/5 transition cursor-pointer group" onclick="window.location='/teams/{{ entry.team.id }}?season={{ season }}'">
+                                <td class="px-3 md:px-6 py-3 md:py-4 text-slate-500 dark:text-zinc-500 font-mono sticky-column bg-inherit">{{ loop.index }}</td>
+                                <td class="px-3 md:px-6 py-3 md:py-4 font-bold text-slate-900 dark:text-white whitespace-nowrap group-hover:text-orange-500 transition-colors">
                                     <div class="flex items-center">
                                         <img src="https://cdn.nba.com/logos/nba/{{ entry.team.id }}/primary/L/logo.svg" 
                                              alt="" 
@@ -67,13 +73,13 @@
                                         <span class="md:hidden">{{ entry.team.abbreviation }}</span>
                                     </div>
                                 </td>
-                                <td class="px-4 md:px-6 py-3 md:py-4 text-center text-gray-900 dark:text-gray-100 font-bold bg-gray-50/50 dark:bg-gray-700/50">{{ entry.wins }}</td>
-                                <td class="px-4 md:px-6 py-3 md:py-4 text-center text-gray-500 dark:text-gray-400">{{ entry.losses }}</td>
-                                <td class="px-4 md:px-6 py-3 md:py-4 text-center text-gray-900 dark:text-gray-100 font-mono">{{ "%.3f"|format(entry.pct) }}</td>
+                                <td class="px-4 md:px-6 py-3 md:py-4 text-center text-slate-900 dark:text-white font-bold bg-orange-500/5 dark:bg-orange-500/10">{{ entry.wins }}</td>
+                                <td class="px-4 md:px-6 py-3 md:py-4 text-center text-slate-500 dark:text-zinc-400">{{ entry.losses }}</td>
+                                <td class="px-4 md:px-6 py-3 md:py-4 text-center text-slate-900 dark:text-white font-mono">{{ "%.3f"|format(entry.pct) }}</td>
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="5" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">No hay datos disponibles.</td>
+                                <td colspan="5" class="px-6 py-12 text-center text-slate-500 dark:text-zinc-400 font-medium italic">No hay datos disponibles.</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -82,7 +88,7 @@
             {% endcall %}
 
             <!-- Western Conference -->
-            {% call card_container(title="Conferencia Oeste", class="border-red-100 dark:border-red-900") %}
+            {% call card_container(title="Conferencia Oeste", class="border-zinc-200 dark:border-white/10") %}
                 <div class="table-container">
                     <table class="min-w-full text-xs md:text-sm">
                         {{ stats_table_header([
@@ -92,11 +98,11 @@
                             {'label': 'L'},
                             {'label': 'PCT'}
                         ]) }}
-                        <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                        <tbody class="divide-y divide-slate-100 dark:divide-white/5">
                             {% for entry in west_standings %}
-                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition cursor-pointer" onclick="window.location='/teams/{{ entry.team.id }}?season={{ season }}'">
-                                <td class="px-3 md:px-6 py-3 md:py-4 text-gray-500 dark:text-gray-400 font-mono sticky-column">{{ loop.index }}</td>
-                                <td class="px-3 md:px-6 py-3 md:py-4 font-bold text-gray-900 dark:text-gray-100 whitespace-nowrap">
+                            <tr class="hover:bg-slate-50 dark:hover:bg-white/5 transition cursor-pointer group" onclick="window.location='/teams/{{ entry.team.id }}?season={{ season }}'">
+                                <td class="px-3 md:px-6 py-3 md:py-4 text-slate-500 dark:text-zinc-500 font-mono sticky-column bg-inherit">{{ loop.index }}</td>
+                                <td class="px-3 md:px-6 py-3 md:py-4 font-bold text-slate-900 dark:text-white whitespace-nowrap group-hover:text-orange-500 transition-colors">
                                     <div class="flex items-center">
                                         <img src="https://cdn.nba.com/logos/nba/{{ entry.team.id }}/primary/L/logo.svg" 
                                              alt="" 
@@ -106,13 +112,13 @@
                                         <span class="md:hidden">{{ entry.team.abbreviation }}</span>
                                     </div>
                                 </td>
-                                <td class="px-4 md:px-6 py-3 md:py-4 text-center text-gray-900 dark:text-gray-100 font-bold bg-gray-50/50 dark:bg-gray-700/50">{{ entry.wins }}</td>
-                                <td class="px-4 md:px-6 py-3 md:py-4 text-center text-gray-500 dark:text-gray-400">{{ entry.losses }}</td>
-                                <td class="px-4 md:px-6 py-3 md:py-4 text-center text-gray-900 dark:text-gray-100 font-mono">{{ "%.3f"|format(entry.pct) }}</td>
+                                <td class="px-4 md:px-6 py-3 md:py-4 text-center text-slate-900 dark:text-white font-bold bg-orange-500/5 dark:bg-orange-500/10">{{ entry.wins }}</td>
+                                <td class="px-4 md:px-6 py-3 md:py-4 text-center text-slate-500 dark:text-zinc-400">{{ entry.losses }}</td>
+                                <td class="px-4 md:px-6 py-3 md:py-4 text-center text-slate-900 dark:text-white font-mono">{{ "%.3f"|format(entry.pct) }}</td>
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="5" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">No hay datos disponibles.</td>
+                                <td colspan="5" class="px-6 py-12 text-center text-slate-500 dark:text-zinc-400 font-medium italic">No hay datos disponibles.</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -129,7 +135,7 @@
             <div class="inline-flex min-w-full px-4 items-stretch">
                 {% for round in bracket %}
                 <div class="flex-shrink-0 w-64 flex flex-col mx-4">
-                    <h3 class="text-center font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 py-3 rounded-lg mb-4 shadow-sm">{{ round.name }}</h3>
+                    <h3 class="text-center font-black text-slate-900 dark:text-white bg-slate-50/50 dark:bg-black/20 border border-slate-100 dark:border-white/5 py-3 rounded-xl mb-4 shadow-sm uppercase tracking-widest text-xs font-display">{{ round.name }}</h3>
                     
                     <div class="flex flex-col justify-around flex-grow">
                         {% for series in round.series %}
@@ -150,7 +156,7 @@
             <div class="inline-flex min-w-full px-4 items-stretch">
                 {% for round in ist_bracket %}
                 <div class="flex-shrink-0 w-64 flex flex-col mx-4">
-                    <h3 class="text-center font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 py-3 rounded-lg mb-4 shadow-sm">{{ round.name }}</h3>
+                    <h3 class="text-center font-black text-slate-900 dark:text-white bg-slate-50/50 dark:bg-black/20 border border-slate-100 dark:border-white/5 py-3 rounded-xl mb-4 shadow-sm uppercase tracking-widest text-xs font-display">{{ round.name }}</h3>
                     
                     <div class="flex flex-col justify-around flex-grow">
                         {% for series in round.series %}
@@ -177,8 +183,8 @@
         const poContent = document.getElementById('content-playoffs');
         const istContent = document.getElementById('content-ist');
 
-        const activeClasses = 'border-blue-500 text-blue-600 dark:text-blue-400 whitespace-nowrap py-4 px-1 border-b-2 font-bold text-xs md:text-sm uppercase tracking-widest';
-        const inactiveClasses = 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600 whitespace-nowrap py-4 px-1 border-b-2 font-bold text-xs md:text-sm uppercase tracking-widest';
+        const activeClasses = 'flex-auto px-6 py-2 rounded-full text-xs font-black whitespace-nowrap transition-all bg-orange-500 text-white shadow-lg shadow-orange-500/20 uppercase tracking-widest';
+        const inactiveClasses = 'flex-auto px-6 py-2 rounded-full text-xs font-black whitespace-nowrap transition-all text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 uppercase tracking-widest';
 
         // Reset all tabs
         if (regTab) regTab.className = inactiveClasses;

@@ -406,7 +406,7 @@ Dateados/
 ├── web/                         # Aplicación Web (FastAPI)
 │   ├── __init__.py
 │   ├── app.py                   # Configuración del servidor
-│   ├── pencil_logic.py          # Lógica del juego Alto el Lápiz
+│   ├── contest_logic.py          # Lógica del juego Alto el Lápiz
 │   ├── routes/                  # Controladores por módulo (10 archivos)
 │   │   ├── home.py              # Página principal
 │   │   ├── players.py           # Jugadores
@@ -414,7 +414,7 @@ Dateados/
 │   │   ├── seasons.py           # Temporadas y standings
 │   │   ├── leaders.py           # Líderes estadísticos
 │   │   ├── games.py             # Partidos
-│   │   ├── pencil.py            # Juego Alto el Lápiz
+│   │   ├── contest.py            # Juego Alto el Lápiz
 │   │   ├── admin.py             # Panel de administración
 │   │   ├── outliers.py          # Dashboard de outliers
 │   │   └── streaks.py           # Dashboard de rachas
@@ -900,7 +900,7 @@ uvicorn web.app:app --host 0.0.0.0 --port 8000
 | `/leaders` | Top 10 líderes estadísticos (PTS, REB, AST, STL, BLK) |
 | `/games` | Lista de partidos con filtros por temporada y equipo |
 | `/games/{game_id}` | Box score completo del partido con estadísticas detalladas |
-| `/pencil` | Juego "Alto el Lápiz" (trivia interactiva) |
+| `/contest` | Juego "Alto el Lápiz" (trivia interactiva) |
 | `/admin/ingest` | Panel de administración para ejecutar y monitorear ingestas |
 | `/outliers` | Dashboard de detección de anomalías (league + player + trends) |
 | `/streaks` | Dashboard de rachas (activas, rotas, récords históricos) |
@@ -911,8 +911,8 @@ uvicorn web.app:app --host 0.0.0.0 --port 8000
 
 | Ruta | Método | Descripción |
 |------|--------|-------------|
-| `/api/pencil/validate` | GET | Validar respuesta del jugador en el juego (params: category, answer) |
-| `/api/pencil/hint` | GET | Obtener pista inteligente para una categoría (param: category) |
+| `/api/contest/validate` | GET | Validar respuesta del jugador en el juego (params: category, answer) |
+| `/api/contest/hint` | GET | Obtener pista inteligente para una categoría (param: category) |
 | `/admin/ingest/run` | POST | Iniciar proceso de ingesta incremental en background |
 | `/admin/ingest/status` | GET | Obtener estado actual de la ingesta (progress, message, status) |
 | `/admin/ingest/logs` | GET | Obtener últimos logs de la ingesta (param: limit, default 50) |
@@ -1004,7 +1004,7 @@ LIMIT 1
 
 #### API de Validación
 
-**Endpoint**: `GET /api/pencil/validate`
+**Endpoint**: `GET /api/contest/validate`
 
 **Parámetros**:
 - `category`: Nombre de la categoría (ej: "champion")
@@ -1031,7 +1031,7 @@ o si es inválido:
 
 #### Acceso al Juego
 
-**URL**: `http://localhost:8000/pencil`
+**URL**: `http://localhost:8000/contest`
 
 **Interfaz**:
 - Diseño responsivo con Tailwind CSS

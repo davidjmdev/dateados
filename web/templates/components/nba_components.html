@@ -1,12 +1,13 @@
 {# components/nba_components.html #}
 
 {% macro stats_table_header(columns) %}
-<thead class="nba-table-header">
+<thead class="nba-table-header sticky top-0 z-20">
     <tr>
         {% for col in columns %}
-        <th class="px-2 md:px-3 py-2 {{ col.class or 'text-center' }} 
-            {% if col.highlight %}bg-gray-100 dark:bg-gray-600 text-gray-900 dark:text-gray-100 font-bold{% endif %}
-            {% if loop.first %}sticky-column z-20{% endif %}">
+        <th class="px-3 md:px-4 py-3 {{ col.class or 'text-center' }} 
+            text-[10px] md:text-xs font-black uppercase tracking-widest
+            {% if col.highlight %}bg-orange-500/10 text-orange-600 dark:text-orange-400{% else %}text-slate-500 dark:text-zinc-500{% endif %}
+            {% if loop.first %}sticky left-0 z-30 bg-inherit{% endif %}">
             {{ col.label }}
         </th>
         {% endfor %}
@@ -15,12 +16,12 @@
 {% endmacro %}
 
 {% macro summary_row(label, data_cols, colspan=1) %}
-<tr class="nba-row-summary">
-    <td class="px-2 md:px-3 py-2 sticky-column nba-row-summary whitespace-nowrap uppercase tracking-wider" colspan="{{ colspan }}">
+<tr class="nba-row-summary font-display">
+    <td class="px-3 md:px-4 py-3 sticky-column bg-inherit whitespace-nowrap uppercase tracking-widest text-[10px] font-black" colspan="{{ colspan }}">
         {{ label }}
     </td>
     {% for val in data_cols %}
-    <td class="px-2 py-2 text-center {% if val.highlight %}bg-slate-200 dark:bg-slate-700{% endif %}">
+    <td class="px-2 py-3 text-center font-mono text-xs md:text-sm {% if val.highlight %}bg-orange-500/10 text-orange-600 dark:text-orange-400 font-bold{% endif %}">
         {{ val.value }}
     </td>
     {% endfor %}
@@ -29,28 +30,29 @@
 
 {% macro badge(text, type='default', class='') %}
 {% set colors = {
-    'default': 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300',
-    'success': 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300',
-    'error': 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300',
-    'warning': 'bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300',
-    'info': 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300'
+    'default': 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700',
+    'success': 'bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-400 border-green-200 dark:border-green-500/20',
+    'error': 'bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/20',
+    'warning': 'bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/20',
+    'info': 'bg-indigo-100 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-500/20',
+    'neon': 'bg-orange-100 dark:bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-500/20'
 } %}
-<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-tight {{ colors[type] or colors['default'] }} {{ class }}">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] md:text-xs font-bold uppercase tracking-wider border {{ colors[type] or colors['default'] }} {{ class }}">
     {{ text }}
 </span>
 {% endmacro %}
 
 {% macro pagination(page, total_pages, base_url, params_dict) %}
 {% if total_pages > 1 %}
-<div class="bg-white dark:bg-gray-800 px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between sm:px-6">
+<div class="px-4 py-3 border-t border-slate-100 dark:border-white/5 bg-slate-50/30 dark:bg-black/10 flex items-center justify-between sm:px-6">
     <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
         <div>
-            <p class="text-sm text-gray-700 dark:text-gray-300">
-                Página <span class="font-medium">{{ page }}</span> de <span class="font-medium">{{ total_pages }}</span>
+            <p class="text-xs text-slate-500 dark:text-zinc-400 font-medium">
+                Página <span class="font-black text-slate-900 dark:text-white">{{ page }}</span> de <span class="font-black text-slate-900 dark:text-white">{{ total_pages }}</span>
             </p>
         </div>
         <div>
-            <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+            <nav class="relative z-0 inline-flex rounded-xl shadow-sm -space-x-px bg-white dark:bg-zinc-800 p-0.5 border border-slate-200 dark:border-white/10" aria-label="Pagination">
                 {% set ns = namespace(query_str="") %}
                 {% for k, v in params_dict.items() %}
                     {% if v is not none and v != '' %}
@@ -60,18 +62,18 @@
                 {% set connector = '?' ~ ns.query_str %}
 
                 {% if page > 1 %}
-                <a href="{{ base_url }}{{ connector }}page={{ page - 1 }}" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600">
+                <a href="{{ base_url }}{{ connector }}page={{ page - 1 }}" class="relative inline-flex items-center px-3 py-2 rounded-lg text-xs font-bold text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors">
                     <span class="sr-only">Anterior</span>
-                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
                     </svg>
                 </a>
                 {% endif %}
                 
                 {% if page < total_pages %}
-                <a href="{{ base_url }}{{ connector }}page={{ page + 1 }}" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600">
+                <a href="{{ base_url }}{{ connector }}page={{ page + 1 }}" class="relative inline-flex items-center px-3 py-2 rounded-lg text-xs font-bold text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors">
                     <span class="sr-only">Siguiente</span>
-                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
                     </svg>
                 </a>
@@ -84,18 +86,20 @@
 {% endmacro %}
 
 {% macro card_container(title=None, icon_url=None, class='') %}
-<div class="nba-card {{ class }}">
+<div class="nba-card {{ class }} flex flex-col">
     {% if title %}
-    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex items-center justify-between">
+    <div class="px-4 md:px-6 py-4 border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-black/20 flex items-center justify-between backdrop-blur-sm">
         <div class="flex items-center space-x-3">
             {% if icon_url %}
-            <img src="{{ icon_url }}" class="h-6 w-6 object-contain" alt="" onerror="this.style.display='none'">
+            <div class="p-1.5 bg-white dark:bg-white/5 rounded-lg shadow-sm border border-slate-200 dark:border-white/10">
+                <img src="{{ icon_url }}" class="h-5 w-5 object-contain" alt="" onerror="this.style.display='none'">
+            </div>
             {% endif %}
-            <h3 class="font-bold text-gray-900 dark:text-gray-100">{{ title }}</h3>
+            <h3 class="font-display font-black text-xs md:text-sm text-slate-900 dark:text-white uppercase tracking-widest">{{ title }}</h3>
         </div>
     </div>
     {% endif %}
-    <div class="p-0">
+    <div class="flex-grow">
         {{ caller() }}
     </div>
 </div>
@@ -108,23 +112,23 @@
 {% set t2_win = (series.away_score > series.home_score) if is_ist else (series.away_wins >= 4) %}
 
 <div class="py-2">
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden relative">
-        <div class="divide-y divide-gray-100 dark:divide-gray-700">
+    <div class="nba-card overflow-hidden group hover:border-orange-500/30 transition-colors">
+        <div class="divide-y divide-gray-100 dark:divide-white/5">
             <!-- Team 1 (Home) -->
-            <div class="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition {% if t1_win %}bg-green-50 dark:bg-green-900/20{% endif %}" onclick="window.location='/teams/{{ series.home_team.id }}?season={{ season }}'">
-                <div class="flex items-center space-x-3 overflow-hidden group">
-                    <img src="https://cdn.nba.com/logos/nba/{{ series.home_team.id }}/primary/L/logo.svg" class="h-6 w-6 object-contain" alt="">
-                    <span class="text-xs font-bold text-gray-900 dark:text-gray-100 truncate">{{ series.home_team.abbreviation }}</span>
+            <div class="px-3 py-2.5 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition {% if t1_win %}bg-orange-50/30 dark:bg-orange-500/10{% endif %}" onclick="window.location='/teams/{{ series.home_team.id }}?season={{ season }}'">
+                <div class="flex items-center space-x-3 overflow-hidden">
+                    <img src="https://cdn.nba.com/logos/nba/{{ series.home_team.id }}/primary/L/logo.svg" class="h-5 w-5 object-contain opacity-80 group-hover:opacity-100 transition-opacity" alt="">
+                    <span class="text-xs font-bold {% if t1_win %}text-gray-900 dark:text-white{% else %}text-gray-500 dark:text-zinc-500{% endif %} truncate">{{ series.home_team.abbreviation }}</span>
                 </div>
-                <span class="text-base font-black text-gray-900 dark:text-gray-100">{{ t1_val }}</span>
+                <span class="font-display font-bold {% if t1_win %}text-orange-600 dark:text-orange-400{% else %}text-gray-400 dark:text-zinc-600{% endif %}">{{ t1_val }}</span>
             </div>
             <!-- Team 2 (Away) -->
-            <div class="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition {% if t2_win %}bg-green-50 dark:bg-green-900/20{% endif %}" onclick="window.location='/teams/{{ series.away_team.id }}?season={{ season }}'">
-                <div class="flex items-center space-x-3 overflow-hidden group">
-                    <img src="https://cdn.nba.com/logos/nba/{{ series.away_team.id }}/primary/L/logo.svg" class="h-6 w-6 object-contain" alt="">
-                    <span class="text-xs font-bold text-gray-900 dark:text-gray-100 truncate">{{ series.away_team.abbreviation }}</span>
+            <div class="px-3 py-2.5 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition {% if t2_win %}bg-orange-50/30 dark:bg-orange-500/10{% endif %}" onclick="window.location='/teams/{{ series.away_team.id }}?season={{ season }}'">
+                <div class="flex items-center space-x-3 overflow-hidden">
+                    <img src="https://cdn.nba.com/logos/nba/{{ series.away_team.id }}/primary/L/logo.svg" class="h-5 w-5 object-contain opacity-80 group-hover:opacity-100 transition-opacity" alt="">
+                    <span class="text-xs font-bold {% if t2_win %}text-gray-900 dark:text-white{% else %}text-gray-500 dark:text-zinc-500{% endif %} truncate">{{ series.away_team.abbreviation }}</span>
                 </div>
-                <span class="text-base font-black text-gray-900 dark:text-gray-100">{{ t2_val }}</span>
+                <span class="font-display font-bold {% if t2_win %}text-orange-600 dark:text-orange-400{% else %}text-gray-400 dark:text-zinc-600{% endif %}">{{ t2_val }}</span>
             </div>
         </div>
     </div>

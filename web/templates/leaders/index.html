@@ -5,16 +5,24 @@
 
 {% block content %}
 <div class="space-y-8">
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Líderes de la Temporada</h1>
+    <div class="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/5 p-8 md:p-12 shadow-xl dark:shadow-2xl transition-colors duration-300">
+        <div class="absolute inset-0 bg-gradient-to-l from-orange-500/10 dark:from-orange-900/20 to-transparent opacity-50"></div>
+        <div class="absolute inset-0 bg-grid-slate-900/[0.02] dark:bg-grid-white/[0.02] bg-[length:30px_30px]"></div>
         
-        <form method="get" class="flex items-center space-x-2 live-search-form" data-target="#leaders-grid-container">
-            <select name="season" class="pl-4 pr-10 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm">
-                {% for s in all_seasons %}
-                <option value="{{ s }}" {% if s == season %}selected{% endif %}>{{ s }}</option>
-                {% endfor %}
-            </select>
-        </form>
+        <div class="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+            <div>
+                <h1 class="text-4xl md:text-5xl font-display font-black text-slate-900 dark:text-white tracking-tighter mb-2">Líderes de la Temporada</h1>
+                <p class="text-slate-600 dark:text-zinc-400 max-w-2xl text-lg font-medium">Los mejores rendimientos estadísticos del año.</p>
+            </div>
+            
+            <form method="get" class="flex items-center live-search-form bg-slate-50 dark:bg-white/5 p-4 rounded-2xl border border-slate-200 dark:border-white/5 backdrop-blur-sm" data-target="#leaders-grid-container">
+                <select name="season" class="px-6 py-2.5 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-gray-100 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm transition-all font-bold">
+                    {% for s in all_seasons %}
+                    <option value="{{ s }}" {% if s == season %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
     </div>
 
     <!-- Leaders Grids -->

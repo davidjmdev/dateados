@@ -248,9 +248,10 @@ class StreakDetector(BaseDetector):
         competition_type: str = 'regular',
         commit: bool = True
     ) -> Optional[OutlierResult]:
-        """Extiende o inicia una racha."""
+        """Extiende o inicia una racha con lógica de blindaje anti-duplicados."""
         player_id = stats.player_id
         
+        # 1. Intentar extender racha activa existente
         active_streak = session.query(StreakRecord).filter(
             and_(
                 StreakRecord.player_id == player_id,
@@ -269,59 +270,77 @@ class StreakDetector(BaseDetector):
                 session.commit()
             
             self._check_and_update_all_time_record(session, active_streak, commit=commit)
+            return self._verify_historical_status(session, active_streak, stats, commit)
             
-            # Verificar si alcanza distintivo de "HISTÓRICA" de forma dinámica (70% del récord)
-            if not active_streak.is_historical_outlier:
-                # Obtener el récord actual para esta categoría y competición
-                record = session.query(StreakAllTimeRecord).filter(
-                    and_(
-                        StreakAllTimeRecord.streak_type == streak_type,
-                        StreakAllTimeRecord.competition_type == competition_type
-                    )
-                ).first()
-                
-                # Usar récord actual o suelo de 2 si no hay registro
-                all_time_length = record.length if record else 2
-                threshold = max(2, int(all_time_length * STREAK_HISTORICAL_PERCENTAGE))
-                
-                if active_streak.length >= threshold:
-                    active_streak.is_historical_outlier = True
-                    if commit:
-                        session.commit()
-                    
-                    return OutlierResult(
-                        player_game_stat_id=stats.id,
-                        is_outlier=True,
-                        outlier_data={
-                            'streak_type': streak_type,
-                            'competition_type': competition_type,
-                            'length': active_streak.length,
-                            'threshold': threshold,
-                            'started_at': str(active_streak.started_at),
-                            'player_id': player_id,
-                            'streak_id': active_streak.id
-                        }
-                    )
-            
-            if commit:
-                session.commit()
-        else:
-            new_streak = StreakRecord(
-                player_id=player_id,
-                streak_type=streak_type,
-                competition_type=competition_type,
-                length=1,
-                is_active=True,
-                is_historical_outlier=False,
-                started_at=game.date,
-                ended_at=None,
-                first_game_id=game.id,
-                last_game_id=None
+        # 2. Si no hay activa, verificar si esta racha ya existe (evitar duplicado físico)
+        # Esto ocurre si el proceso se reinicia y volvemos a procesar el mismo partido
+        existing_event = session.query(StreakRecord).filter(
+            and_(
+                StreakRecord.player_id == player_id,
+                StreakRecord.streak_type == streak_type,
+                StreakRecord.competition_type == competition_type,
+                StreakRecord.started_at == game.date
             )
-            session.add(new_streak)
+        ).first()
+        
+        if existing_event:
+            # Ya existe un registro que empezó hoy, no hacemos nada (idempotencia)
+            return None
+            
+        # 3. Crear racha nueva
+        new_streak = StreakRecord(
+            player_id=player_id,
+            streak_type=streak_type,
+            competition_type=competition_type,
+            length=1,
+            is_active=True,
+            is_historical_outlier=False,
+            started_at=game.date,
+            ended_at=None,
+            first_game_id=game.id,
+            last_game_id=None
+        )
+        session.add(new_streak)
+        if commit:
+            session.commit()
+        
+        return None
+
+    def _verify_historical_status(self, session: Session, streak: StreakRecord, stats: PlayerGameStats, commit: bool) -> Optional[OutlierResult]:
+        """Verifica si una racha ha alcanzado el estatus de HISTÓRICA."""
+        if streak.is_historical_outlier:
+            return None
+            
+        # Obtener el récord actual para esta categoría y competición
+        record = session.query(StreakAllTimeRecord).filter(
+            and_(
+                StreakAllTimeRecord.streak_type == streak.streak_type,
+                StreakAllTimeRecord.competition_type == streak.competition_type
+            )
+        ).first()
+        
+        # Usar récord actual o suelo de 2 si no hay registro
+        all_time_length = record.length if record else 2
+        threshold = max(2, int(all_time_length * STREAK_HISTORICAL_PERCENTAGE))
+        
+        if streak.length >= threshold:
+            streak.is_historical_outlier = True
             if commit:
                 session.commit()
-        
+            
+            return OutlierResult(
+                player_game_stat_id=stats.id,
+                is_outlier=True,
+                outlier_data={
+                    'streak_type': streak.streak_type,
+                    'competition_type': streak.competition_type,
+                    'length': streak.length,
+                    'threshold': threshold,
+                    'started_at': str(streak.started_at),
+                    'player_id': streak.player_id,
+                    'streak_id': streak.id
+                }
+            )
         return None
     
     def _check_and_update_all_time_record(

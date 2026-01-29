@@ -38,7 +38,7 @@ async def list_players(
     per_page: int = 50,
     search: Optional[str] = None,
     position: Optional[str] = None,
-    active_only: bool = Query(False),
+    active_only: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
     # Calcular offset
@@ -51,7 +51,8 @@ async def list_players(
         query = query.filter(Player.full_name.ilike(f"%{search}%"))
     if position:
         query = query.filter(Player.position.ilike(f"%{position}%"))
-    if active_only:
+    
+    if active_only == '1':
         from datetime import datetime
         current_year = datetime.now().year
         from sqlalchemy import or_

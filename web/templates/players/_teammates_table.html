@@ -1,47 +1,45 @@
-{% from "components/nba_components.html" import stats_table_header, pagination %}
+{% from "components/nba_components.html" import stats_table_header, pagination, badge %}
 
 <div id="teammates-table-container">
-    <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+    <div class="table-container">
+        <table class="min-w-full divide-y divide-gray-100 dark:divide-white/5 border-separate border-spacing-0">
             {{ stats_table_header([
                 {'label': 'Jugador', 'class': 'text-left px-6'},
                 {'label': 'Temporadas', 'class': 'text-center'},
                 {'label': 'Equipos', 'class': 'text-left'},
                 {'label': 'Años', 'class': 'text-left'}
             ]) }}
-            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            <tbody class="bg-white dark:bg-zinc-900 divide-y divide-gray-100 dark:divide-white/5">
                 {% for teammate in teammates %}
-                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                <tr class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors cursor-pointer group" onclick="window.location='/players/{{ teammate.id }}'">
                     <td class="px-6 py-4 whitespace-nowrap">
-                        <a href="/players/{{ teammate.id }}" class="flex items-center space-x-3 group">
-                            <div class="h-10 w-10 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden flex-shrink-0 border border-gray-50 dark:border-gray-600">
-                                <img src="https://cdn.nba.com/headshots/nba/latest/260x190/{{ teammate.id }}.png" 
-                                     alt="{{ teammate.full_name }}"
-                                     onerror="this.onerror=null; this.src='https://via.placeholder.com/60?text={{ teammate.full_name[:1] }}'"
-                                     class="h-full w-full object-cover">
-                            </div>
+                        <div class="flex items-center space-x-3">
+                             <div class="h-10 w-10 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center text-zinc-500 font-bold overflow-hidden border border-slate-200 dark:border-white/10 group-hover:border-orange-500/50 transition-colors">
+                                 <img src="https://cdn.nba.com/headshots/nba/latest/260x190/{{ teammate.id }}.png" 
+                                      alt="{{ teammate.full_name }}"
+                                      onerror="this.onerror=null; this.src='https://via.placeholder.com/60?text={{ teammate.full_name[:1] }}'"
+                                      class="h-full w-full object-cover">
+                             </div>
                             <div>
-                                <div class="text-sm font-bold text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400">{{ teammate.full_name }}</div>
-                                <div class="text-[10px] font-bold text-gray-400 uppercase tracking-tight">{{ teammate.position }}</div>
+                                <div class="text-sm font-bold text-slate-900 dark:text-zinc-100 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">{{ teammate.full_name }}</div>
+                                <div class="text-[10px] font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-tight">{{ teammate.position }}</div>
                             </div>
-                        </a>
+                        </div>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-center">
-                        <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 font-black text-xs">
+                        <span class="text-slate-900 dark:text-white font-black text-sm">
                             {{ teammate.total_seasons }}
                         </span>
                     </td>
                     <td class="px-6 py-4">
                         <div class="flex flex-wrap gap-1">
                             {% for team in teammate.teams_together %}
-                            <span class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-[10px] font-bold rounded uppercase tracking-wider border border-gray-200 dark:border-gray-600" title="{{ team.name }}">
-                                {{ team.abbreviation }}
-                            </span>
+                                {{ badge(team.abbreviation, type='default', class='text-[9px]') }}
                             {% endfor %}
                         </div>
                     </td>
                     <td class="px-6 py-4">
-                        <div class="text-xs text-gray-600 dark:text-gray-400 font-mono">
+                        <div class="text-xs text-slate-500 dark:text-zinc-400 font-mono font-medium">
                             {{ teammate.seasons_together|join(', ') }}
                         </div>
                     </td>

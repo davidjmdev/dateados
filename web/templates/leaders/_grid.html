@@ -8,25 +8,27 @@
     ] %}
 
     {% for key, label, unit in categories %}
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-        <div class="bg-gray-50 dark:bg-gray-700 px-3 md:px-4 py-2 md:py-3 border-b border-gray-100 dark:border-gray-600 flex justify-between items-center">
-            <h3 class="font-bold text-xs md:text-sm text-gray-800 dark:text-gray-200">{{ label }}</h3>
-            <span class="text-[8px] md:text-[10px] font-bold bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded uppercase tracking-wider">{{ unit }}</span>
+    <div class="nba-card flex flex-col h-full">
+        <div class="px-4 py-3 bg-slate-50/50 dark:bg-white/5 border-b border-slate-100 dark:border-white/5 flex justify-between items-center backdrop-blur-sm">
+            <h3 class="font-display font-black text-xs md:text-sm text-slate-900 dark:text-white uppercase tracking-widest">{{ label }}</h3>
+            <span class="text-[9px] font-black bg-orange-500/10 text-orange-600 dark:text-orange-400 px-2 py-0.5 rounded border border-orange-500/20">{{ unit }}</span>
         </div>
-        <ul class="divide-y divide-gray-100 dark:divide-gray-700">
+        <ul class="divide-y divide-slate-100 dark:divide-white/5 flex-grow">
             {% for player in leaders[key] %}
-            <li class="hover:bg-gray-50 dark:hover:bg-gray-700 transition p-2 md:p-3 flex items-center justify-between cursor-pointer" onclick="window.location='/players/{{ player.id }}'">
-                <div class="flex items-center space-x-2 md:space-x-3 overflow-hidden">
-                    <span class="text-gray-400 dark:text-gray-500 font-mono w-4 text-[10px]">{{ loop.index }}</span>
-                    <div class="flex items-center group overflow-hidden">
-                        <img src="https://cdn.nba.com/headshots/nba/latest/260x190/{{ player.id }}.png" 
-                             alt="" 
-                             onerror="this.style.display='none'"
-                             class="h-6 w-6 md:h-8 md:w-8 rounded-full bg-gray-100 dark:bg-gray-700 object-cover mr-2 flex-shrink-0">
-                        <span class="text-[11px] md:text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ player.full_name }}</span>
+            <li class="hover:bg-slate-50 dark:hover:bg-white/5 transition p-3 flex items-center justify-between cursor-pointer group" onclick="window.location='/players/{{ player.id }}'">
+                <div class="flex items-center space-x-3 overflow-hidden">
+                    <span class="text-zinc-400 font-mono text-[10px] font-bold w-4">{{ loop.index }}</span>
+                    <div class="flex items-center gap-3 overflow-hidden">
+                        <div class="h-8 w-8 rounded-full bg-slate-100 dark:bg-zinc-800 overflow-hidden border border-slate-200 dark:border-white/10 group-hover:border-orange-500/50 transition-colors">
+                            <img src="https://cdn.nba.com/headshots/nba/latest/260x190/{{ player.id }}.png" 
+                                 alt="" 
+                                 onerror="this.style.display='none'"
+                                 class="h-[120%] w-[120%] object-cover object-top mt-0.5">
+                        </div>
+                        <span class="text-xs font-bold text-slate-900 dark:text-white truncate group-hover:text-orange-600 dark:group-hover:text-orange-500 transition-colors">{{ player.full_name }}</span>
                     </div>
                 </div>
-                <span class="text-xs md:text-sm font-bold text-gray-900 dark:text-gray-100">{{ "%.1f"|format(player.value) }}</span>
+                <span class="font-mono font-black text-sm text-slate-900 dark:text-white">{{ "%.1f"|format(player.value) }}</span>
             </li>
             {% endfor %}
         </ul>

@@ -5,31 +5,37 @@
 
 {% block content %}
 <div class="space-y-8">
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Partidos</h1>
+    <div class="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/5 p-8 md:p-12 shadow-xl dark:shadow-2xl transition-colors duration-300">
+        <div class="absolute inset-0 bg-gradient-to-l from-orange-500/10 dark:from-orange-900/20 to-transparent opacity-50"></div>
+        <div class="absolute inset-0 bg-grid-slate-900/[0.02] dark:bg-grid-white/[0.02] bg-[length:30px_30px]"></div>
         
-        <form method="get" class="flex flex-col md:flex-row gap-2 live-search-form" data-target="#games-table-container">
-            <select name="season" class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm">
-                <option value="">Todas las temporadas</option>
-                {% for s in all_seasons %}
-                <option value="{{ s }}" {% if s == season %}selected{% endif %}>{{ s }}</option>
-                {% endfor %}
-            </select>
-            
-            <div class="flex items-center space-x-2">
-                <input type="date" name="start_date" value="{{ start_date or '' }}" class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm">
-                <span class="text-gray-500 dark:text-gray-400">-</span>
-                <input type="date" name="end_date" value="{{ end_date or '' }}" class="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm">
+        <div class="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+            <div>
+                <h1 class="text-4xl md:text-5xl font-display font-black text-slate-900 dark:text-white tracking-tighter mb-2">Archivo de Partidos</h1>
+                <p class="text-slate-600 dark:text-zinc-400 max-w-2xl text-lg font-medium">Resultados, boxscores y analítica de cada encuentro.</p>
             </div>
             
-            {% if season or start_date or end_date %}
-            <a href="/games" class="px-4 py-2 bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 text-sm font-medium transition text-center flex items-center justify-center">Limpiar</a>
-            {% endif %}
-        </form>
+            <form method="get" class="flex flex-col md:flex-row gap-3 live-search-form bg-slate-50 dark:bg-white/5 p-4 rounded-2xl border border-slate-200 dark:border-white/5 backdrop-blur-sm" data-target="#games-table-container">
+                <select name="season" class="px-4 py-2 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-gray-100 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm transition-all font-bold">
+                    <option value="">Temporada</option>
+                    {% for s in all_seasons %}
+                    <option value="{{ s }}" {% if s == season %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+                
+                <div class="flex items-center gap-2">
+                    <input type="date" name="start_date" value="{{ start_date or '' }}" class="px-4 py-2 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-gray-100 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm transition-all font-medium">
+                    <input type="date" name="end_date" value="{{ end_date or '' }}" class="px-4 py-2 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-gray-100 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm transition-all font-medium">
+                </div>
+                
+                {% if season or start_date or end_date %}
+                <a href="/games" class="px-4 py-2 bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-zinc-300 rounded-xl hover:bg-slate-300 dark:hover:bg-white/20 text-xs font-black transition-all uppercase tracking-tighter flex items-center justify-center">Limpiar</a>
+                {% endif %}
+            </form>
+        </div>
     </div>
 
     <!-- Games List -->
     {% include "games/_table.html" %}
-</div>
 </div>
 {% endblock %}
