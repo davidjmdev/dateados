@@ -175,17 +175,12 @@
             
             /* Pill Container */
             .nba-pill-container {
-                @apply overflow-x-auto overflow-y-hidden bg-white/50 dark:bg-white/5 
-                       backdrop-blur-sm rounded-full p-1 border border-slate-200 dark:border-white/5;
+                @apply bg-white/50 dark:bg-white/5 backdrop-blur-sm rounded-2xl p-1.5 
+                       border border-slate-200 dark:border-white/5 w-full;
             }
-            .nba-pill-container::-webkit-scrollbar {
-                height: 6px;
-            }
-            .nba-pill-container::-webkit-scrollbar-track {
-                background: transparent;
-            }
-            .nba-pill-container::-webkit-scrollbar-thumb {
-                @apply bg-slate-300 dark:bg-zinc-700 rounded-full;
+
+            .nba-pill-flex {
+                @apply flex flex-wrap gap-1.5 w-full;
             }
 
             /* Active Pill Tab */
@@ -201,8 +196,18 @@
 
             /* Base Pill Tab (shared styles) */
             .nba-pill-tab {
-                @apply flex-auto px-6 py-2 rounded-full text-[10px] md:text-xs font-black 
-                       whitespace-nowrap transition-all uppercase tracking-widest text-center;
+                @apply px-4 py-2 rounded-full text-[10px] md:text-xs font-black 
+                       transition-all uppercase tracking-widest text-center;
+                flex: 1 1 180px;
+                min-width: 140px;
+                max-width: 100%;
+            }
+
+            @media (max-width: 640px) {
+                .nba-pill-tab {
+                    flex: 1 1 130px;
+                    min-width: 100px;
+                }
             }
 
             /* Window Selector (soft active state) */
