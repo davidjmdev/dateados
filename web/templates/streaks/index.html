@@ -21,13 +21,13 @@
     ], columns=3) }}
 
     <div class="nba-pill-container">
-        <nav class="nba-pill-flex">
-            <a href="?comp={{ comp }}&type=all" 
+        <nav class="nba-pill-flex streak-type-nav">
+            <a href="?comp={{ comp }}&type=all"
                class="nba-pill-tab {% if streak_type_filter == 'all' %}nba-pill-active{% else %}nba-pill-inactive{% endif %}">
                 Todos
             </a>
             {% for st in streak_types %}
-            <a href="?comp={{ comp }}&type={{ st }}" 
+            <a href="?comp={{ comp }}&type={{ st }}"
                class="nba-pill-tab {% if streak_type_filter == st %}nba-pill-active{% else %}nba-pill-inactive{% endif %}">
                 {{ streak_names.get(st, st) }}
             </a>

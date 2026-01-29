@@ -125,20 +125,34 @@ def get_historical_teammates(player_id: int, session: Optional[Session] = None) 
 
 
 def get_database_stats(session: Optional[Session] = None) -> Dict[str, int]:
-    """Retorna estadísticas generales de la base de datos."""
+    """Retorna estadísticas generales de la base de datos.
+    
+    Optimizado para realizar una única consulta a la base de datos.
+    """
     own_session = False
     if session is None:
         session = get_session()
         own_session = True
     try:
+        # Usamos subconsultas para obtener todos los conteos en un solo viaje a la BD
+        stats = session.query(
+            session.query(func.count(Team.id)).label('teams'),
+            session.query(func.count(Player.id)).label('players'),
+            session.query(func.count(Game.id)).label('games'),
+            session.query(func.count(PlayerGameStats.id)).label('player_game_stats'),
+            session.query(func.count(TeamGameStats.id)).label('team_game_stats'),
+            session.query(func.count(PlayerTeamSeason.id)).label('player_team_seasons'),
+            session.query(func.count(PlayerAward.id)).label('player_awards')
+        ).first()
+        
         return {
-            'teams': session.query(Team).count(),
-            'players': session.query(Player).count(),
-            'games': session.query(Game).count(),
-            'player_game_stats': session.query(PlayerGameStats).count(),
-            'team_game_stats': session.query(TeamGameStats).count(),
-            'player_team_seasons': session.query(PlayerTeamSeason).count(),
-            'player_awards': session.query(PlayerAward).count(),
+            'teams': stats.teams,
+            'players': stats.players,
+            'games': stats.games,
+            'player_game_stats': stats.player_game_stats,
+            'team_game_stats': stats.team_game_stats,
+            'player_team_seasons': stats.player_team_seasons,
+            'player_awards': stats.player_awards,
         }
     finally:
         if own_session: 
@@ -424,54 +438,62 @@ def get_team_record(team_id: int, season: Optional[str] = None, session: Optiona
         
         conference = team.conference
         
-        # 2. Obtener todos los partidos de temporada regular para el cálculo de standings
-        query = session.query(Game).filter(Game.status == 3, Game.rs == True)
+        # 2. Obtener estadísticas de victorias y derrotas usando agregación SQL
+        # Es mucho más eficiente que cargar todos los partidos en memoria
+        from sqlalchemy import case
+        
+        # Filtros base
+        base_filters = [Game.status == 3, Game.rs == True]
         if season:
-            query = query.filter(Game.season == season)
-        
-        games = query.all()
-        
-        # 3. Calcular victorias/derrotas para todos los equipos
-        stats = {} # team_id -> {'wins': 0, 'losses': 0}
-        
-        for g in games:
-            t1, t2 = g.home_team_id, g.away_team_id
-            if t1 not in stats: stats[t1] = {'wins': 0, 'losses': 0}
-            if t2 not in stats: stats[t2] = {'wins': 0, 'losses': 0}
+            base_filters.append(Game.season == season)
             
-            if g.winner_team_id == t1:
-                stats[t1]['wins'] += 1
-                stats[t2]['losses'] += 1
-            else:
-                stats[t2]['wins'] += 1
-                stats[t1]['losses'] += 1
+        # Victorias por equipo
+        wins_stats = dict(
+            session.query(Game.winner_team_id, func.count(Game.id))
+            .filter(*base_filters)
+            .filter(Game.winner_team_id.isnot(None))
+            .group_by(Game.winner_team_id).all()
+        )
         
-        # 4. Obtener equipos de la misma conferencia
+        # Derrotas por equipo (el que no ganó en un partido finalizado)
+        losses_stats = dict(
+            session.query(
+                case(
+                    (Game.winner_team_id == Game.home_team_id, Game.away_team_id),
+                    else_=Game.home_team_id
+                ).label('loser_id'),
+                func.count(Game.id)
+            )
+            .filter(*base_filters)
+            .filter(Game.winner_team_id.isnot(None))
+            .group_by('loser_id').all()
+        )
+        
+        # 3. Obtener todos los equipos de la misma conferencia para calcular el ranking
         conf_teams = session.query(Team.id).filter(Team.conference == conference).all()
-        conf_team_ids = {t.id for t in conf_teams}
+        conf_team_ids = [t.id for t in conf_teams]
         
-        # 5. Construir tabla de clasificación de la conferencia
+        # 4. Construir tabla de clasificación de la conferencia
         standings = []
         for tid in conf_team_ids:
-            rec = stats.get(tid, {'wins': 0, 'losses': 0})
-            w, l = rec['wins'], rec['losses']
+            w = wins_stats.get(tid, 0)
+            l = losses_stats.get(tid, 0)
             pct = w / (w + l) if (w + l) > 0 else 0.0
             standings.append({'team_id': tid, 'wins': w, 'losses': l, 'pct': pct})
             
-        # 6. Ordenar por PCT descendente
+        # 5. Ordenar por PCT descendente
         standings.sort(key=lambda x: x['pct'], reverse=True)
         
-        # 7. Extraer datos del equipo objetivo
+        # 6. Extraer datos del equipo objetivo
         target_rank = None
-        target_rec = stats.get(team_id, {'wins': 0, 'losses': 0})
-        
         for i, s in enumerate(standings):
             if s['team_id'] == team_id:
                 target_rank = i + 1
                 break
-                
-        wins = target_rec['wins']
-        losses = target_rec['losses']
+        
+        team_stat = next((s for s in standings if s['team_id'] == team_id), {'wins': 0, 'losses': 0})
+        wins = team_stat['wins']
+        losses = team_stat['losses']
         total = wins + losses
         
         return {
@@ -787,13 +809,49 @@ def get_player_career_highs(player_id: int, session: Optional[Session] = None) -
         session = get_session()
         own_session = True
     try:
-        all_stats = session.query(PlayerGameStats).options(
-            joinedload(PlayerGameStats.game).joinedload(Game.home_team), 
-            joinedload(PlayerGameStats.game).joinedload(Game.away_team), 
-            joinedload(PlayerGameStats.team)
-        ).filter(PlayerGameStats.player_id == player_id).all()
+        from sqlalchemy import case, func
         
-        if not all_stats:
+        # 1. Obtener los valores máximos y conteos de hitos en una sola consulta SQL
+        # Esto evita cargar miles de registros en memoria
+        stats_query = session.query(
+            func.count(PlayerGameStats.id).label('total_games'),
+            func.max(PlayerGameStats.pts).label('max_pts'),
+            func.max(PlayerGameStats.reb).label('max_reb'),
+            func.max(PlayerGameStats.ast).label('max_ast'),
+            func.max(PlayerGameStats.stl).label('max_stl'),
+            func.max(PlayerGameStats.blk).label('max_blk'),
+            func.max(PlayerGameStats.fg3m).label('max_fg3m'),
+            func.max(PlayerGameStats.fgm).label('max_fgm'),
+            func.max(PlayerGameStats.ftm).label('max_ftm'),
+            func.max(PlayerGameStats.min).label('max_min'),
+            func.max(PlayerGameStats.plus_minus).label('max_plus_minus'),
+            # Conteos de hitos
+            func.sum(case((PlayerGameStats.pts >= 60, 1), else_=0)).label('g60'),
+            func.sum(case((and_(PlayerGameStats.pts >= 50, PlayerGameStats.pts < 60), 1), else_=0)).label('g50'),
+            func.sum(case((and_(PlayerGameStats.pts >= 40, PlayerGameStats.pts < 50), 1), else_=0)).label('g40'),
+            func.sum(case((PlayerGameStats.reb >= 20, 1), else_=0)).label('r20'),
+            func.sum(case((PlayerGameStats.ast >= 20, 1), else_=0)).label('a20'),
+            func.sum(case((PlayerGameStats.stl >= 5, 1), else_=0)).label('s5'),
+            func.sum(case((PlayerGameStats.blk >= 5, 1), else_=0)).label('b5'),
+            func.sum(case((PlayerGameStats.fg3m >= 10, 1), else_=0)).label('t10'),
+            # Dobles y Triples dobles (Lógica SQL)
+            func.sum(case((
+                case((PlayerGameStats.pts >= 10, 1), else_=0) +
+                case((PlayerGameStats.reb >= 10, 1), else_=0) +
+                case((PlayerGameStats.ast >= 10, 1), else_=0) +
+                case((PlayerGameStats.stl >= 10, 1), else_=0) +
+                case((PlayerGameStats.blk >= 10, 1), else_=0) >= 3, 1), else_=0
+            )).label('td'),
+            func.sum(case((
+                case((PlayerGameStats.pts >= 10, 1), else_=0) +
+                case((PlayerGameStats.reb >= 10, 1), else_=0) +
+                case((PlayerGameStats.ast >= 10, 1), else_=0) +
+                case((PlayerGameStats.stl >= 10, 1), else_=0) +
+                case((PlayerGameStats.blk >= 10, 1), else_=0) >= 2, 1), else_=0
+            )).label('dd')
+        ).filter(PlayerGameStats.player_id == player_id).first()
+        
+        if not stats_query or stats_query.total_games == 0:
             return {
                 'pts': None, 'reb': None, 'ast': None, 'stl': None, 'blk': None, 
                 'fg3m': None, 'fgm': None, 'ftm': None, 'min': None, 'plus_minus': None, 
@@ -803,11 +861,28 @@ def get_player_career_highs(player_id: int, session: Optional[Session] = None) -
                 'games_5_blk': 0, 'games_10_3pm': 0, 'total_games': 0
             }
             
-        def find_max(stats_list, stat_attr, is_timedelta=False):
-            max_stat = max(stats_list, key=lambda s: (getattr(s, stat_attr).total_seconds() if is_timedelta else getattr(s, stat_attr)) if getattr(s, stat_attr) is not None else 0)
-            val = (max_stat.min.total_seconds() / 60) if is_timedelta else getattr(max_stat, stat_attr)
-            game = max_stat.game
-            vs = game.away_team.abbreviation if max_stat.team_id == game.home_team_id else game.home_team.abbreviation
+        # 2. Para cada máximo, obtener los detalles del partido correspondiente
+        # Solo hacemos esto para los campos que el usuario realmente ve en el UI
+        def get_high_detail(stat_attr, max_val):
+            if max_val is None: return None
+            
+            # Buscar el partido donde ocurrió este máximo
+            best_game_stat = session.query(PlayerGameStats)\
+                .options(joinedload(PlayerGameStats.game).joinedload(Game.home_team),
+                         joinedload(PlayerGameStats.game).joinedload(Game.away_team))\
+                .filter(PlayerGameStats.player_id == player_id, 
+                        getattr(PlayerGameStats, stat_attr) == max_val)\
+                .join(Game).order_by(desc(Game.date)).first()
+            
+            if not best_game_stat: return None
+            
+            game = best_game_stat.game
+            vs = game.away_team.abbreviation if best_game_stat.team_id == game.home_team_id else game.home_team.abbreviation
+            
+            val = max_val
+            if stat_attr == 'min':
+                val = max_val.total_seconds() / 60
+                
             return {
                 'value': val, 
                 'game_id': game.id, 
@@ -816,37 +891,28 @@ def get_player_career_highs(player_id: int, session: Optional[Session] = None) -
                 'season': game.season
             }
             
-        dd, td, g40, g50, g60, r20, a20, s5, b5, t10 = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-        for s in all_stats:
-            if s.is_triple_double: td += 1
-            if s.is_double_double: dd += 1
-            
-            if s.pts >= 60: g60 += 1
-            elif s.pts >= 50: g50 += 1
-            elif s.pts >= 40: g40 += 1
-            
-            if s.reb >= 20: r20 += 1
-            if s.ast >= 20: a20 += 1
-            if s.stl >= 5: s5 += 1
-            if s.blk >= 5: b5 += 1
-            if s.fg3m >= 10: t10 += 1
-            
         return {
-            'pts': find_max(all_stats, 'pts'), 
-            'reb': find_max(all_stats, 'reb'), 
-            'ast': find_max(all_stats, 'ast'), 
-            'stl': find_max(all_stats, 'stl'), 
-            'blk': find_max(all_stats, 'blk'), 
-            'fg3m': find_max(all_stats, 'fg3m'), 
-            'fgm': find_max(all_stats, 'fgm'), 
-            'ftm': find_max(all_stats, 'ftm'), 
-            'min': find_max(all_stats, 'min', is_timedelta=True), 
-            'plus_minus': find_max(all_stats, 'plus_minus'), 
-            'double_doubles': dd, 'triple_doubles': td, 
-            'games_40_pts': g40, 'games_50_pts': g50, 'games_60_pts': g60, 
-            'games_20_reb': r20, 'games_20_ast': a20, 
-            'games_5_stl': s5, 'games_5_blk': b5, 
-            'games_10_3pm': t10, 'total_games': len(all_stats)
+            'pts': get_high_detail('pts', stats_query.max_pts),
+            'reb': get_high_detail('reb', stats_query.max_reb),
+            'ast': get_high_detail('ast', stats_query.max_ast),
+            'stl': get_high_detail('stl', stats_query.max_stl),
+            'blk': get_high_detail('blk', stats_query.max_blk),
+            'fg3m': get_high_detail('fg3m', stats_query.max_fg3m),
+            'fgm': get_high_detail('fgm', stats_query.max_fgm),
+            'ftm': get_high_detail('ftm', stats_query.max_ftm),
+            'min': get_high_detail('min', stats_query.max_min),
+            'plus_minus': get_high_detail('plus_minus', stats_query.max_plus_minus),
+            'double_doubles': int(stats_query.dd or 0),
+            'triple_doubles': int(stats_query.td or 0),
+            'games_40_pts': int(stats_query.g40 or 0),
+            'games_50_pts': int(stats_query.g50 or 0),
+            'games_60_pts': int(stats_query.g60 or 0),
+            'games_20_reb': int(stats_query.r20 or 0),
+            'games_20_ast': int(stats_query.a20 or 0),
+            'games_5_stl': int(stats_query.s5 or 0),
+            'games_5_blk': int(stats_query.b5 or 0),
+            'games_10_3pm': int(stats_query.t10 or 0),
+            'total_games': stats_query.total_games
         }
     finally:
         if own_session: 

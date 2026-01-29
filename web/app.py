@@ -19,6 +19,10 @@ setup_logging(context="web")
 
 app = FastAPI(title="NBA Stats Web")
 
+# Añadir compresión GZip para mejorar la velocidad de transferencia
+from fastapi.middleware.gzip import GZipMiddleware
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 # Configurar rutas de archivos estaticos y templates
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
