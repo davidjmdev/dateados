@@ -68,9 +68,9 @@
         </div>
 
         <!-- Quick Stats -->
-        <div class="nba-card p-4 md:p-6 bg-gradient-to-br from-white to-gray-50 dark:from-zinc-900 dark:to-zinc-900/50">
-            <h3 class="text-xs font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-widest mb-4 font-display">Última Temporada ({{ ultima_temporada or '-' }})</h3>
-            <div class="grid grid-cols-3 gap-2 md:gap-4 text-center divide-x divide-gray-100 dark:divide-white/5">
+        <div class="nba-card p-4 md:p-6 bg-gradient-to-br from-white to-slate-50 dark:from-zinc-900 dark:to-zinc-900/50">
+            <h3 class="nba-section-title mb-4">Ultima Temporada ({{ ultima_temporada or '-' }})</h3>
+            <div class="grid grid-cols-3 gap-2 md:gap-4 text-center divide-x divide-slate-100 dark:divide-white/5">
                 <div class="cursor-default group/stat">
                     <div class="text-3xl md:text-4xl font-display font-black text-slate-900 dark:text-white group-hover/stat:text-orange-600 dark:group-hover/stat:text-orange-500 transition-colors">
                         {{ "%.1f"|format(promedios.pts) if promedios else '--' }}
@@ -172,11 +172,11 @@
             <!-- Tabs Navigation (Pill Design) -->
             <div class="bg-slate-50/50 dark:bg-white/5 backdrop-blur-sm p-1 border-b border-slate-100 dark:border-white/5 overflow-x-auto overflow-y-hidden custom-scrollbar">
                 <nav class="flex w-full space-x-1">
-                    <button onclick="switchStatsTab('last7')" id="tab-last7" class="flex-auto px-6 py-2 rounded-full text-[10px] md:text-xs font-black whitespace-nowrap transition-all bg-orange-500 text-white shadow-lg shadow-orange-500/20 uppercase tracking-widest">Semana</button>
-                    <button onclick="switchStatsTab('last30')" id="tab-last30" class="flex-auto px-6 py-2 rounded-full text-[10px] md:text-xs font-black whitespace-nowrap transition-all text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 uppercase tracking-widest">Mes</button>
-                    <button onclick="switchStatsTab('rs')" id="tab-rs" class="flex-auto px-6 py-2 rounded-full text-[10px] md:text-xs font-black whitespace-nowrap transition-all text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 uppercase tracking-widest">Regular Season</button>
-                    <button onclick="switchStatsTab('ist')" id="tab-ist" class="flex-auto px-6 py-2 rounded-full text-[10px] md:text-xs font-black whitespace-nowrap transition-all text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 uppercase tracking-widest">NBA Cup</button>
-                    <button onclick="switchStatsTab('po')" id="tab-po" class="flex-auto px-6 py-2 rounded-full text-[10px] md:text-xs font-black whitespace-nowrap transition-all text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 uppercase tracking-widest">Playoffs</button>
+                    <button onclick="nbaSwitchTab('stats', 'last7')" id="tab-last7" class="nba-pill-tab nba-pill-active">Semana</button>
+                    <button onclick="nbaSwitchTab('stats', 'last30')" id="tab-last30" class="nba-pill-tab nba-pill-inactive">Mes</button>
+                    <button onclick="nbaSwitchTab('stats', 'rs')" id="tab-rs" class="nba-pill-tab nba-pill-inactive">Regular Season</button>
+                    <button onclick="nbaSwitchTab('stats', 'ist')" id="tab-ist" class="nba-pill-tab nba-pill-inactive">NBA Cup</button>
+                    <button onclick="nbaSwitchTab('stats', 'po')" id="tab-po" class="nba-pill-tab nba-pill-inactive">Playoffs</button>
                 </nav>
             </div>
             
@@ -328,28 +328,4 @@
 </div>
 {% endblock %}
 
-{% block scripts %}
-<script>
-    function switchStatsTab(tabId) {
-        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-        const targetContent = document.getElementById('stats-' + tabId);
-        if (targetContent) targetContent.classList.remove('hidden');
-        
-        const allTabIds = ['last7', 'last30', 'rs', 'ist', 'po'];
-        const activeClasses = ['flex-auto', 'px-6', 'py-2', 'rounded-full', 'text-[10px]', 'md:text-xs', 'font-black', 'whitespace-nowrap', 'transition-all', 'bg-orange-500', 'text-white', 'shadow-lg', 'shadow-orange-500/20', 'uppercase', 'tracking-widest'];
-        const inactiveClasses = ['flex-auto', 'px-6', 'py-2', 'rounded-full', 'text-[10px]', 'md:text-xs', 'font-black', 'whitespace-nowrap', 'transition-all', 'text-slate-500', 'hover:text-slate-900', 'dark:text-zinc-400', 'dark:hover:text-white', 'hover:bg-slate-100', 'dark:hover:bg-white/5', 'uppercase', 'tracking-widest'];
-        
-        allTabIds.forEach(id => {
-            const btn = document.getElementById('tab-' + id);
-            if (btn) {
-                btn.classList.remove(...activeClasses);
-                btn.classList.add(...inactiveClasses);
-                if (id === tabId) {
-                    btn.classList.remove(...inactiveClasses);
-                    btn.classList.add(...activeClasses);
-                }
-            }
-        });
-    }
-</script>
-{% endblock %}
+

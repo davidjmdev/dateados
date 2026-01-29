@@ -85,18 +85,18 @@
                             {'label': 'Exp'},
                             {'label': 'Escuela'}
                         ]) }}
-                        <tbody class="divide-y divide-gray-100 dark:divide-white/5">
+                        <tbody class="divide-y divide-slate-100 dark:divide-white/5">
                             {% for player_season in roster %}
-                            <tr class="hover:bg-gray-50 dark:hover:bg-white/5 transition cursor-pointer group" onclick="window.location='/players/{{ player_season.player.id }}'">
+                            <tr class="hover:bg-slate-50 dark:hover:bg-white/5 transition cursor-pointer group" onclick="window.location='/players/{{ player_season.player.id }}'">
                                 <td class="px-3 md:px-4 py-3 sticky-column bg-inherit">
                                     <div class="flex items-center gap-3">
-                                        <div class="h-8 w-8 md:h-10 md:w-10 rounded-full bg-gray-100 dark:bg-zinc-800 flex-shrink-0 overflow-hidden border border-gray-200 dark:border-white/10 group-hover:border-orange-500/50 transition-colors">
+                                        <div class="h-8 w-8 md:h-10 md:w-10 rounded-full bg-slate-100 dark:bg-zinc-800 flex-shrink-0 overflow-hidden border border-slate-200 dark:border-white/10 group-hover:border-orange-500/50 transition-colors">
                                             <img src="https://cdn.nba.com/headshots/nba/latest/260x190/{{ player_season.player.id }}.png" 
                                                  alt="" 
                                                  onerror="this.onerror=null; this.src='https://via.placeholder.com/50?text={{ player_season.player.full_name[:1] }}'"
                                                  class="h-[120%] w-[120%] object-cover object-top mt-1">
                                         </div>
-                                        <div class="font-bold text-gray-900 dark:text-white group-hover:text-orange-500 transition-colors">{{ player_season.player.full_name }}</div>
+                                        <div class="font-bold text-slate-900 dark:text-white group-hover:text-orange-500 transition-colors">{{ player_season.player.full_name }}</div>
                                     </div>
                                 </td>
                                 <td class="px-2 py-3 text-center text-zinc-500 dark:text-zinc-400 font-medium">{{ player_season.player.position or '-' }}</td>

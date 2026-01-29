@@ -1,21 +1,13 @@
 {% extends "base.html" %}
-{% from "components/nba_components.html" import card_container %}
+{% from "components/nba_components.html" import card_container, page_header %}
 
 {% block title %}Equipos - Dateados{% endblock %}
 
 {% block content %}
 <div class="space-y-12">
-    <!-- Header -->
-    <div class="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/5 p-8 md:p-12 shadow-xl dark:shadow-2xl transition-colors duration-300">
-        <div class="absolute inset-0 bg-gradient-to-l from-orange-500/10 dark:from-orange-900/20 to-transparent opacity-50"></div>
-        <div class="relative z-10">
-            <h1 class="text-4xl md:text-5xl font-display font-black text-slate-900 dark:text-white tracking-tighter mb-2">Franquicias NBA</h1>
-            <p class="text-slate-600 dark:text-zinc-400 max-w-2xl text-lg font-medium">Explora la historia, plantillas y estadísticas de los 30 equipos de la liga.</p>
-        </div>
-    </div>
+    {{ page_header("Franquicias NBA", "Explora la historia, plantillas y estadisticas de los 30 equipos de la liga.") }}
 
     {% for conf_name, conf_color, conf_id in [('Conferencia Este', 'indigo', 'East'), ('Conferencia Oeste', 'rose', 'West')] %}
-    <!-- {{ conf_name }} -->
     <div class="space-y-6">
         <div class="flex items-center space-x-4 pb-2 border-b border-slate-100 dark:border-white/5">
             <h2 class="text-2xl font-display font-black text-{{ conf_color }}-600 dark:text-{{ conf_color }}-500 uppercase tracking-widest">{{ conf_name }}</h2>

@@ -1,49 +1,30 @@
 {% extends "base.html" %}
-{% from "components/nba_components.html" import stats_table_header, card_container, bracket_series_card %}
+{% from "components/nba_components.html" import stats_table_header, card_container, bracket_series_card, page_header, pill_tabs_js %}
 
 {% block title %}Temporada {{ season }} - Dateados{% endblock %}
 
 {% block content %}
 <div class="space-y-8">
-    <div class="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/5 p-8 md:p-12 shadow-xl dark:shadow-2xl transition-colors duration-300">
-        <div class="absolute inset-0 bg-gradient-to-l from-orange-500/10 dark:from-orange-900/20 to-transparent opacity-50"></div>
-        <div class="absolute inset-0 bg-grid-slate-900/[0.02] dark:bg-grid-white/[0.02] bg-[length:30px_30px]"></div>
-        
-        <div class="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
-            <div>
-                <h1 class="text-4xl md:text-5xl font-display font-black text-slate-900 dark:text-white tracking-tighter mb-2">Temporada {{ season }}</h1>
-                <p class="text-slate-600 dark:text-zinc-400 max-w-2xl text-lg font-medium">Resultados, clasificaciones y estadísticas del año.</p>
-            </div>
-            
-            <div class="flex items-center space-x-4 bg-slate-50 dark:bg-white/5 p-4 rounded-2xl border border-slate-200 dark:border-white/5 backdrop-blur-sm">
-                <span class="text-[10px] font-black text-slate-500 dark:text-zinc-400 uppercase tracking-widest">Cambiar Temporada:</span>
-                <select onchange="window.location.href='/seasons/' + this.value" class="bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-gray-100 text-sm rounded-xl focus:ring-2 focus:ring-orange-500 outline-none p-2 shadow-sm font-bold">
-                    {% for s in all_seasons %}
-                    <option value="{{ s }}" {% if s == season %}selected{% endif %}>{{ s }}</option>
-                    {% endfor %}
-                </select>
-            </div>
+    {% call page_header("Temporada " ~ season, "Resultados, clasificaciones y estadisticas del ano.") %}
+        <div class="nba-filter-box">
+            <span class="text-[10px] font-black text-slate-500 dark:text-zinc-400 uppercase tracking-widest">Cambiar Temporada:</span>
+            <select onchange="window.location.href='/seasons/' + this.value" class="nba-select">
+                {% for s in all_seasons %}
+                <option value="{{ s }}" {% if s == season %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+            </select>
         </div>
-    </div>
+    {% endcall %}
 
-    <!-- Tabs -->
-    <div class="overflow-x-auto overflow-y-hidden custom-scrollbar bg-white/50 dark:bg-white/5 backdrop-blur-sm rounded-full p-1 mb-6 border border-slate-200 dark:border-white/5">
-        <nav class="flex w-full space-x-1" aria-label="Tabs">
-            <button onclick="switchTab('regular')" id="tab-regular" class="flex-auto px-6 py-2 rounded-full text-xs font-black whitespace-nowrap transition-all bg-orange-500 text-white shadow-lg shadow-orange-500/20 uppercase tracking-widest">
-                Regular
-            </button>
-            {% if bracket %}
-            <button onclick="switchTab('playoffs')" id="tab-playoffs" class="flex-auto px-6 py-2 rounded-full text-xs font-black whitespace-nowrap transition-all text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 uppercase tracking-widest">
-                Playoffs
-            </button>
-            {% endif %}
-            {% if ist_bracket %}
-            <button onclick="switchTab('ist')" id="tab-ist" class="flex-auto px-6 py-2 rounded-full text-xs font-black whitespace-nowrap transition-all text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 uppercase tracking-widest">
-                NBA Cup
-            </button>
-            {% endif %}
-        </nav>
-    </div>
+    {% set tabs = [{'id': 'regular', 'label': 'Regular'}] %}
+    {% if bracket %}
+        {% set tabs = tabs + [{'id': 'playoffs', 'label': 'Playoffs'}] %}
+    {% endif %}
+    {% if ist_bracket %}
+        {% set tabs = tabs + [{'id': 'ist', 'label': 'NBA Cup'}] %}
+    {% endif %}
+    
+    {{ pill_tabs_js(tabs, active_id='regular', js_function="nbaSwitchTab.bind(null, 'content')", id_prefix='tab') }}
 
     <!-- Regular Season Standings -->
     <div id="content-regular" class="space-y-8">
@@ -170,42 +151,4 @@
     </div>
     {% endif %}
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-    function switchTab(tab) {
-        const regTab = document.getElementById('tab-regular');
-        const poTab = document.getElementById('tab-playoffs');
-        const istTab = document.getElementById('tab-ist');
-        
-        const regContent = document.getElementById('content-regular');
-        const poContent = document.getElementById('content-playoffs');
-        const istContent = document.getElementById('content-ist');
-
-        const activeClasses = 'flex-auto px-6 py-2 rounded-full text-xs font-black whitespace-nowrap transition-all bg-orange-500 text-white shadow-lg shadow-orange-500/20 uppercase tracking-widest';
-        const inactiveClasses = 'flex-auto px-6 py-2 rounded-full text-xs font-black whitespace-nowrap transition-all text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 uppercase tracking-widest';
-
-        // Reset all tabs
-        if (regTab) regTab.className = inactiveClasses;
-        if (poTab) poTab.className = inactiveClasses;
-        if (istTab) istTab.className = inactiveClasses;
-        
-        if (regContent) regContent.classList.add('hidden');
-        if (poContent) poContent.classList.add('hidden');
-        if (istContent) istContent.classList.add('hidden');
-
-        // Set active tab
-        if (tab === 'regular') {
-            if (regTab) regTab.className = activeClasses;
-            if (regContent) regContent.classList.remove('hidden');
-        } else if (tab === 'playoffs') {
-            if (poTab) poTab.className = activeClasses;
-            if (poContent) poContent.classList.remove('hidden');
-        } else if (tab === 'ist') {
-            if (istTab) istTab.className = activeClasses;
-            if (istContent) istContent.classList.remove('hidden');
-        }
-    }
-</script>
 {% endblock %}

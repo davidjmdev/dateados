@@ -33,8 +33,8 @@
                     </svg>
                 </div>
                 <div>
-                    <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">Actualizar Estadísticas</h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 max-w-sm">
+                    <h3 class="text-lg font-bold text-slate-900 dark:text-slate-100">Actualizar Estadísticas</h3>
+                    <p class="text-sm text-slate-500 dark:text-slate-400 max-w-sm">
                         El sistema detectará automáticamente si se requiere una carga histórica completa o solo una actualización incremental de los últimos partidos.
                     </p>
                 </div>
@@ -43,7 +43,7 @@
                     <button id="start-ingest-btn" 
                             onclick="startIngestion(false)"
                             {% if status and status.status == 'running' %}disabled{% endif %}
-                            class="px-8 py-3 bg-orange-600 hover:bg-orange-500 disabled:bg-gray-400 text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-orange-500/20 active:scale-95">
+                            class="px-8 py-3 bg-orange-600 hover:bg-orange-500 disabled:bg-slate-400 text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-orange-500/20 active:scale-95">
                         Iniciar Sincronización
                     </button>
                     <button id="reset-ingest-btn" 
@@ -56,7 +56,7 @@
             </div>
 
             <!-- Progress Section (Hidden by default unless running) -->
-            <div id="progress-section" class="{% if not status or status.status != 'running' %}hidden{% endif %} space-y-4 border-t border-gray-100 dark:border-gray-700 pt-8">
+            <div id="progress-section" class="{% if not status or status.status != 'running' %}hidden{% endif %} space-y-4 border-t border-slate-100 dark:border-slate-700 pt-8">
                 <div class="flex justify-between items-end">
                     <div class="space-y-1">
                         <span class="text-[10px] font-bold text-orange-600 dark:text-orange-400 uppercase tracking-widest">Progreso actual</span>
@@ -77,8 +77,8 @@
                 </div>
 
                 <div class="bg-black rounded-2xl border border-white/5 shadow-2xl overflow-hidden">
-                    <div id="log-console" class="text-[11px] font-mono p-6 h-80 overflow-y-auto custom-scrollbar bg-black text-gray-300 leading-relaxed">
-                        <p class="text-gray-600">// Terminal lista. Esperando eventos...</p>
+                    <div id="log-console" class="text-[11px] font-mono p-6 h-80 overflow-y-auto custom-scrollbar bg-black text-slate-300 leading-relaxed">
+                        <p class="text-slate-600">// Terminal lista. Esperando eventos...</p>
                     </div>
                 </div>
             </div>
@@ -144,12 +144,12 @@
                         const p = document.createElement('p');
                         const ts = new Date(log.timestamp).toLocaleTimeString();
                         
-                        let levelClass = 'text-gray-500';
+                        let levelClass = 'text-slate-500';
                         if (log.level === 'ERROR') levelClass = 'text-red-500 font-bold';
                         if (log.level === 'WARNING') levelClass = 'text-amber-500';
                         if (log.level === 'INFO') levelClass = 'text-green-400';
 
-                        p.innerHTML = `<span class="text-gray-600">[${ts}]</span> <span class="${levelClass}">${log.level.padEnd(7)}</span> <span class="text-orange-400">${log.module}:</span> ${log.message}`;
+                        p.innerHTML = `<span class="text-slate-600">[${ts}]</span> <span class="${levelClass}">${log.level.padEnd(7)}</span> <span class="text-orange-400">${log.module}:</span> ${log.message}`;
                         console.appendChild(p);
                         lastLogId = log.id;
                         hasNew = true;

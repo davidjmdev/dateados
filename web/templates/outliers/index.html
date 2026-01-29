@@ -1,84 +1,34 @@
 {% extends "base.html" %}
-{% from "components/nba_components.html" import badge, stats_table_header %}
+{% from "components/nba_components.html" import badge, stats_table_header, page_header, window_selector, stats_summary_bar, pill_tabs, empty_state %}
 
 {% block title %}Outliers - Dateados{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
-    <!-- Hero Section -->
-    <div class="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/5 p-8 md:p-12 shadow-xl dark:shadow-2xl transition-colors duration-300">
-        <div class="absolute inset-0 bg-gradient-to-l from-orange-500/10 dark:from-orange-900/20 to-transparent opacity-50"></div>
-        <div class="absolute inset-0 bg-grid-slate-900/[0.02] dark:bg-grid-white/[0.02] bg-[length:30px_30px]"></div>
+    {% call page_header("Centro de Analisis: Outliers", "Actuaciones excepcionales y crisis de rendimiento detectadas en tiempo real.") %}
+        {{ window_selector([
+            {'id': 'last_game', 'label': 'Anoche'},
+            {'id': 'week', 'label': 'Semana'},
+            {'id': 'month', 'label': 'Mes'}
+        ], current=window, base_url='?tab=' ~ tab, param_name='window') }}
+    {% endcall %}
         
-        <div class="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
-            <div>
-                <h1 class="text-4xl md:text-5xl font-display font-black text-slate-900 dark:text-white tracking-tighter mb-2">Centro de Análisis: Outliers</h1>
-                <p class="text-slate-600 dark:text-zinc-400 max-w-2xl text-lg font-medium">Actuaciones excepcionales y crisis de rendimiento detectadas en tiempo real.</p>
-            </div>
-            
-            <!-- Window Selector -->
-            <div class="inline-flex w-full md:w-auto rounded-full border border-slate-200 dark:border-white/5 p-1 bg-slate-50 dark:bg-white/5 backdrop-blur-sm shadow-inner">
-                <nav class="flex w-full space-x-1">
-                    <a href="?tab={{ tab }}&window=last_game" 
-                       class="flex-auto px-6 py-2.5 text-[10px] text-center font-black whitespace-nowrap rounded-full transition-all {% if window == 'last_game' %}bg-white dark:bg-white/10 text-orange-600 dark:text-orange-400 shadow-sm{% else %}text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300{% endif %} uppercase tracking-widest">
-                        Anoche
-                    </a>
-                    <a href="?tab={{ tab }}&window=week" 
-                       class="flex-auto px-6 py-2.5 text-[10px] text-center font-black whitespace-nowrap rounded-full transition-all {% if window == 'week' %}bg-white dark:bg-white/10 text-orange-600 dark:text-orange-400 shadow-sm{% else %}text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300{% endif %} uppercase tracking-widest">
-                        Semana
-                    </a>
-                    <a href="?tab={{ tab }}&window=month" 
-                       class="flex-auto px-6 py-2.5 text-[10px] text-center font-black whitespace-nowrap rounded-full transition-all {% if window == 'month' %}bg-white dark:bg-white/10 text-orange-600 dark:text-orange-400 shadow-sm{% else %}text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300{% endif %} uppercase tracking-widest">
-                        Mes
-                    </a>
-                </nav>
-            </div>
-        </div>
-    </div>
-        
-    <!-- Unified Outliers Stats Bar (Restore colors for top bar only) -->
-    <div class="nba-card bg-slate-50/50 dark:bg-white/5 border-slate-200 dark:border-white/5 py-6 px-4 md:px-8">
-        <div class="grid grid-cols-2 md:grid-cols-3 gap-8 md:divide-x divide-slate-200 dark:divide-white/10">
-            {% set summary_items = [
-                ('Hitos de Liga', stats.league_outliers | default(0), 'indigo', 'M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9'),
-                ('Explosiones', stats.explosions | default(0), 'green', 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6'),
-                ('Crisis', stats.crises | default(0), 'red', 'M13 17h8m0 0v-8m0 8l-8-8-4 4-6-6')
-            ] %}
-            {% for label, val, color, icon_path in summary_items %}
-            <div class="flex flex-col items-center text-center space-y-1">
-                <div class="flex items-center gap-2 text-{{color}}-600 dark:text-{{color}}-400 opacity-80 mb-1">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ icon_path }}" />
-                    </svg>
-                    <span class="text-[10px] font-black uppercase tracking-widest">{{ label }}</span>
-                </div>
-                <span class="font-display font-black text-2xl md:text-3xl text-slate-900 dark:text-white tracking-tighter">{{ val }}</span>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
+    {{ stats_summary_bar([
+        {'label': 'Hitos de Liga', 'value': stats.league_outliers|default(0), 'color': 'indigo', 'icon': 'M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9'},
+        {'label': 'Explosiones', 'value': stats.explosions|default(0), 'color': 'green', 'icon': 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6'},
+        {'label': 'Crisis', 'value': stats.crises|default(0), 'color': 'red', 'icon': 'M13 17h8m0 0v-8m0 8l-8-8-4 4-6-6'}
+    ], columns=3) }}
 
-    <!-- Tabs -->
-    <div class="overflow-x-auto overflow-y-hidden custom-scrollbar bg-gray-50/50 dark:bg-white/5 backdrop-blur-sm rounded-full p-1 mb-6 border border-slate-200 dark:border-white/5">
-        <nav class="flex w-full space-x-1">
-            <a href="?tab=player&season={{ season }}&window={{ window }}" 
-               class="flex-auto px-6 py-2 rounded-full text-[10px] md:text-xs text-center font-black whitespace-nowrap transition-all {% if tab == 'player' %}bg-orange-500 text-white shadow-lg shadow-orange-500/20 uppercase tracking-widest{% else %}text-zinc-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white hover:bg-white/50 dark:hover:bg-white/5 uppercase tracking-widest{% endif %}">
-                Jugador (Z-score)
-            </a>
-            <a href="?tab=league&season={{ season }}&window={{ window }}" 
-               class="flex-auto px-6 py-2 rounded-full text-[10px] md:text-xs text-center font-black whitespace-nowrap transition-all {% if tab == 'league' %}bg-orange-500 text-white shadow-lg shadow-orange-500/20 uppercase tracking-widest{% else %}text-zinc-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white hover:bg-white/50 dark:hover:bg-white/5 uppercase tracking-widest{% endif %}">
-                Liga (Autoencoder)
-            </a>
-        </nav>
-    </div>
+    {{ pill_tabs([
+        {'id': 'player', 'label': 'Jugador (Z-score)', 'url': '?tab=player&season=' ~ season ~ '&window=' ~ window},
+        {'id': 'league', 'label': 'Liga (Autoencoder)', 'url': '?tab=league&season=' ~ season ~ '&window=' ~ window}
+    ], active_id=tab) }}
 
-    <!-- Tab Content -->
     {% if tab == 'league' %}
-    <!-- League Outliers Table -->
     <div class="nba-card overflow-hidden">
         <div class="px-6 py-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between bg-slate-50/50 dark:bg-black/20 backdrop-blur-sm">
             <div>
-                <h2 class="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest font-display">Hitos de la Liga (Anomalías Globales)</h2>
+                <h2 class="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest font-display">Hitos de la Liga (Anomalias Globales)</h2>
                 <p class="text-[9px] text-slate-500 dark:text-zinc-400 font-bold uppercase mt-0.5">Actuaciones que rompen los patrones normales de toda la NBA</p>
             </div>
             <span class="text-[10px] font-mono font-bold bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 px-2 py-1 rounded text-slate-500 dark:text-zinc-400 uppercase tracking-widest">Percentil 99+</span>
@@ -114,7 +64,7 @@
                             {{ o.percentile }}%
                         </td>
                         <td class="px-6 py-4 text-[10px] text-slate-500 dark:text-zinc-500 font-black uppercase tracking-tighter">
-                            {{ o.top_features | join(' • ') }}
+                            {{ o.top_features | join(' - ') }}
                         </td>
                     </tr>
                     {% endfor %}
@@ -122,24 +72,16 @@
             </table>
         </div>
         {% else %}
-        <div class="px-6 py-24 text-center bg-white dark:bg-zinc-900">
-            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-50 dark:bg-white/5 mb-4 border border-slate-100 dark:border-white/5">
-                <svg class="h-8 w-8 text-zinc-300 dark:text-zinc-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-            </div>
-            <p class="text-slate-500 dark:text-zinc-400 text-lg font-medium italic">No se han detectado anomalías de liga para esta temporada.</p>
-        </div>
+        {{ empty_state("No se han detectado anomalias de liga para esta temporada.") }}
         {% endif %}
     </div>
 
     {% elif tab == 'player' %}
-    <!-- Player Outliers Table -->
     <div class="nba-card overflow-hidden">
         <div class="px-6 py-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between bg-slate-50/50 dark:bg-black/20 backdrop-blur-sm">
             <div>
                 <h2 class="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest font-display">
-                    {% if window == 'last_game' %}Explosiones y Crisis Individuales (Partido){% else %}Tendencias Anómalas ({{ window | title }}){% endif %}
+                    {% if window == 'last_game' %}Explosiones y Crisis Individuales (Partido){% else %}Tendencias Anomalas ({{ window | title }}){% endif %}
                 </h2>
                 <p class="text-[9px] text-slate-500 dark:text-zinc-400 font-bold uppercase mt-0.5">
                     {% if window == 'last_game' %}Rendimiento de anoche vs su media de temporada{% else %}Promedio de la {{ window }} vs su media de temporada{% endif %}
@@ -213,14 +155,7 @@
             </table>
         </div>
         {% else %}
-        <div class="px-6 py-24 text-center bg-white dark:bg-zinc-900">
-            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-50 dark:bg-white/5 mb-4 border border-slate-100 dark:border-white/5">
-                <svg class="h-8 w-8 text-zinc-300 dark:text-zinc-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-            </div>
-            <p class="text-slate-500 dark:text-zinc-400 text-lg font-medium italic">No hay explosiones ni crisis detectadas en este periodo.</p>
-        </div>
+        {{ empty_state("No hay explosiones ni crisis detectadas en este periodo.") }}
         {% endif %}
     </div>
     {% endif %}

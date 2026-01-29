@@ -111,8 +111,21 @@
 
             /* Responsive Table Utilities */
             .table-container {
-                @apply overflow-x-auto relative custom-scrollbar;
+                @apply overflow-x-auto relative;
                 -webkit-overflow-scrolling: touch;
+            }
+            .table-container::-webkit-scrollbar {
+                width: 6px;
+                height: 6px;
+            }
+            .table-container::-webkit-scrollbar-track {
+                background: transparent;
+            }
+            .table-container::-webkit-scrollbar-thumb {
+                @apply bg-slate-300 dark:bg-zinc-700 rounded-full;
+            }
+            .table-container::-webkit-scrollbar-thumb:hover {
+                @apply bg-slate-400 dark:bg-zinc-600;
             }
             
             /* Enhanced sticky column with smooth shadow */
@@ -123,6 +136,160 @@
             /* Gradient Text Utility */
             .text-gradient {
                 @apply bg-clip-text text-transparent bg-gradient-to-r from-orange-600 to-red-600 dark:from-orange-400 dark:to-amber-500;
+            }
+
+            /* ========================================
+               NBA Design System - Form Controls
+               ======================================== */
+            
+            /* Text Input */
+            .nba-input {
+                @apply w-full px-4 py-2 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 
+                       text-slate-900 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-orange-500 
+                       outline-none text-sm transition-all font-medium placeholder:text-slate-400 dark:placeholder:text-zinc-500;
+            }
+
+            /* Select Dropdown */
+            .nba-select {
+                @apply px-4 py-2 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 
+                       text-slate-900 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-orange-500 
+                       outline-none text-sm transition-all font-bold cursor-pointer;
+            }
+
+            /* Primary Button */
+            .nba-btn-primary {
+                @apply px-6 py-2 bg-orange-600 hover:bg-orange-500 disabled:bg-slate-400 text-white rounded-xl 
+                       font-bold transition-all shadow-lg shadow-orange-500/20 active:scale-95;
+            }
+
+            /* Secondary Button */
+            .nba-btn-secondary {
+                @apply px-4 py-2 bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-zinc-300 
+                       rounded-xl hover:bg-slate-300 dark:hover:bg-white/20 text-xs font-black 
+                       transition-all uppercase tracking-tighter;
+            }
+
+            /* ========================================
+               NBA Design System - Pill Tabs
+               ======================================== */
+            
+            /* Pill Container */
+            .nba-pill-container {
+                @apply overflow-x-auto overflow-y-hidden bg-white/50 dark:bg-white/5 
+                       backdrop-blur-sm rounded-full p-1 border border-slate-200 dark:border-white/5;
+            }
+            .nba-pill-container::-webkit-scrollbar {
+                height: 6px;
+            }
+            .nba-pill-container::-webkit-scrollbar-track {
+                background: transparent;
+            }
+            .nba-pill-container::-webkit-scrollbar-thumb {
+                @apply bg-slate-300 dark:bg-zinc-700 rounded-full;
+            }
+
+            /* Active Pill Tab */
+            .nba-pill-active {
+                @apply bg-orange-500 text-white shadow-lg shadow-orange-500/20;
+            }
+
+            /* Inactive Pill Tab */
+            .nba-pill-inactive {
+                @apply text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white 
+                       hover:bg-slate-100 dark:hover:bg-white/5;
+            }
+
+            /* Base Pill Tab (shared styles) */
+            .nba-pill-tab {
+                @apply flex-auto px-6 py-2 rounded-full text-[10px] md:text-xs font-black 
+                       whitespace-nowrap transition-all uppercase tracking-widest text-center;
+            }
+
+            /* Window Selector (soft active state) */
+            .nba-window-active {
+                @apply bg-white dark:bg-white/10 text-orange-600 dark:text-orange-400 shadow-sm;
+            }
+
+            .nba-window-inactive {
+                @apply text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300;
+            }
+
+            /* ========================================
+               NBA Design System - Page Header
+               ======================================== */
+            
+            .nba-page-header {
+                @apply relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900 
+                       border border-slate-200 dark:border-white/5 p-8 md:p-12 
+                       shadow-xl dark:shadow-2xl transition-colors duration-300;
+            }
+
+            .nba-page-header-gradient {
+                @apply absolute inset-0 bg-gradient-to-l from-orange-500/10 dark:from-orange-900/20 
+                       to-transparent opacity-50;
+            }
+
+            .nba-page-header-grid {
+                @apply absolute inset-0;
+                background-image: 
+                    linear-gradient(to right, rgb(15 23 42 / 0.02) 1px, transparent 1px),
+                    linear-gradient(to bottom, rgb(15 23 42 / 0.02) 1px, transparent 1px);
+                background-size: 30px 30px;
+            }
+            .dark .nba-page-header-grid {
+                background-image: 
+                    linear-gradient(to right, rgb(255 255 255 / 0.02) 1px, transparent 1px),
+                    linear-gradient(to bottom, rgb(255 255 255 / 0.02) 1px, transparent 1px);
+            }
+
+            .nba-page-title {
+                @apply text-4xl md:text-5xl font-black text-slate-900 dark:text-white 
+                       tracking-tighter mb-2;
+                font-family: 'Space Grotesk', sans-serif;
+            }
+
+            .nba-page-subtitle {
+                @apply text-slate-600 dark:text-zinc-400 max-w-2xl text-lg font-medium;
+            }
+
+            /* ========================================
+               NBA Design System - Filter Box
+               ======================================== */
+            
+            .nba-filter-box {
+                @apply flex flex-col md:flex-row gap-3 bg-slate-50 dark:bg-white/5 p-4 rounded-2xl 
+                       border border-slate-200 dark:border-white/5 backdrop-blur-sm;
+            }
+
+            /* ========================================
+               NBA Design System - Empty State
+               ======================================== */
+            
+            .nba-empty-state {
+                @apply px-6 py-24 text-center bg-white dark:bg-zinc-900;
+            }
+
+            .nba-empty-icon {
+                @apply inline-flex items-center justify-center w-16 h-16 rounded-full 
+                       bg-slate-50 dark:bg-white/5 mb-4 border border-slate-100 dark:border-white/5;
+            }
+
+            .nba-empty-message {
+                @apply text-slate-500 dark:text-zinc-400 text-lg font-medium italic;
+            }
+
+            /* ========================================
+               NBA Design System - Section Header
+               ======================================== */
+            
+            .nba-section-title {
+                @apply text-xs font-black text-zinc-500 dark:text-zinc-500 uppercase tracking-widest;
+                font-family: 'Space Grotesk', sans-serif;
+            }
+
+            .nba-section-link {
+                @apply text-[10px] font-bold text-orange-600 dark:text-orange-500 hover:text-orange-400 
+                       uppercase tracking-wider transition-colors;
             }
 
             /* Fix Browser Autofill and Focus Background */
@@ -144,7 +311,10 @@
             }
             
             input:focus {
-                @apply bg-white dark:bg-zinc-800 !important;
+                background-color: white !important;
+            }
+            .dark input:focus {
+                background-color: rgb(39 39 42) !important; /* zinc-800 */
             }
         }
     </style>
@@ -308,6 +478,43 @@
             
             themeToggle.addEventListener('click', cycleTheme);
         })();
+    </script>
+    
+    <!-- Unified Tab Switching Script -->
+    <script>
+        /**
+         * Universal tab switcher for NBA Design System
+         * @param {string} prefix - The prefix for content IDs (e.g., 'stats', 'content')
+         * @param {string} tabId - The tab to activate
+         * @param {string} btnPrefix - Optional prefix for button IDs (defaults to 'tab')
+         */
+        function nbaSwitchTab(prefix, tabId, btnPrefix = 'tab') {
+            // Hide all content panels with this prefix
+            document.querySelectorAll(`[id^="${prefix}-"]`).forEach(el => {
+                if (el.id.startsWith(prefix + '-')) {
+                    el.classList.add('hidden');
+                }
+            });
+            
+            // Show the target content
+            const targetContent = document.getElementById(prefix + '-' + tabId);
+            if (targetContent) targetContent.classList.remove('hidden');
+            
+            // Update all tab buttons
+            document.querySelectorAll(`[id^="${btnPrefix}-"]`).forEach(btn => {
+                if (btn.id.startsWith(btnPrefix + '-')) {
+                    btn.classList.remove('nba-pill-active');
+                    btn.classList.add('nba-pill-inactive');
+                }
+            });
+            
+            // Activate the clicked button
+            const activeBtn = document.getElementById(btnPrefix + '-' + tabId);
+            if (activeBtn) {
+                activeBtn.classList.remove('nba-pill-inactive');
+                activeBtn.classList.add('nba-pill-active');
+            }
+        }
     </script>
     
     {% block scripts %}{% endblock %}

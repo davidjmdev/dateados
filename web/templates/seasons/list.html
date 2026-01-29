@@ -1,19 +1,11 @@
 {% extends "base.html" %}
+{% from "components/nba_components.html" import page_header, empty_state %}
 
 {% block title %}Temporadas - Dateados{% endblock %}
 
 {% block content %}
 <div class="space-y-12">
-    <!-- Hero Section -->
-    <div class="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/5 p-8 md:p-12 shadow-xl dark:shadow-2xl transition-colors duration-300">
-        <div class="absolute inset-0 bg-gradient-to-l from-orange-500/10 dark:from-orange-900/20 to-transparent opacity-50"></div>
-        <div class="absolute inset-0 bg-grid-slate-900/[0.02] dark:bg-grid-white/[0.02] bg-[length:30px_30px]"></div>
-        
-        <div class="relative z-10">
-            <h1 class="text-4xl md:text-5xl font-display font-black text-slate-900 dark:text-white tracking-tighter mb-2">Archivo Histórico</h1>
-            <p class="text-slate-600 dark:text-zinc-400 max-w-2xl text-lg font-medium">Explora cada temporada de la NBA, desde los clásicos hasta la era moderna.</p>
-        </div>
-    </div>
+    {{ page_header("Archivo Historico", "Explora cada temporada de la NBA, desde los clasicos hasta la era moderna.") }}
 
     <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
         {% for season in seasons %}
@@ -30,22 +22,19 @@
                 
                 <div>
                     <span class="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">Season</span>
-                    <div class="font-display font-black text-2xl text-gray-900 dark:text-white group-hover:text-green-500 transition-colors tracking-tight">{{ season }}</div>
+                    <div class="font-display font-black text-2xl text-slate-900 dark:text-white group-hover:text-green-500 transition-colors tracking-tight">{{ season }}</div>
                 </div>
             </div>
             
-            <!-- Decorative Background Number -->
             <div class="absolute -right-4 -bottom-6 text-7xl font-display font-black text-zinc-100 dark:text-white/5 select-none group-hover:text-green-500/10 transition-colors pointer-events-none">
                 {{ season[-2:] }}
             </div>
         </a>
         {% else %}
-        <div class="col-span-full py-12 flex flex-col items-center justify-center text-zinc-500">
-            <svg class="w-12 h-12 mb-4 text-zinc-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
-            <p>No se encontraron temporadas registradas.</p>
+        <div class="col-span-full">
+            {{ empty_state("No se encontraron temporadas registradas.", icon='inbox') }}
         </div>
         {% endfor %}
     </div>
 </div>
 {% endblock %}
-

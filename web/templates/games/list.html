@@ -1,41 +1,28 @@
 {% extends "base.html" %}
-{% from "components/nba_components.html" import badge, pagination %}
+{% from "components/nba_components.html" import badge, pagination, page_header, clear_filters_btn %}
 
 {% block title %}Partidos - Dateados{% endblock %}
 
 {% block content %}
 <div class="space-y-8">
-    <div class="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/5 p-8 md:p-12 shadow-xl dark:shadow-2xl transition-colors duration-300">
-        <div class="absolute inset-0 bg-gradient-to-l from-orange-500/10 dark:from-orange-900/20 to-transparent opacity-50"></div>
-        <div class="absolute inset-0 bg-grid-slate-900/[0.02] dark:bg-grid-white/[0.02] bg-[length:30px_30px]"></div>
-        
-        <div class="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
-            <div>
-                <h1 class="text-4xl md:text-5xl font-display font-black text-slate-900 dark:text-white tracking-tighter mb-2">Archivo de Partidos</h1>
-                <p class="text-slate-600 dark:text-zinc-400 max-w-2xl text-lg font-medium">Resultados, boxscores y analítica de cada encuentro.</p>
+    {% call page_header("Archivo de Partidos", "Resultados, boxscores y analitica de cada encuentro.") %}
+        <form method="get" class="nba-filter-box live-search-form" data-target="#games-table-container">
+            <select name="season" class="nba-select">
+                <option value="">Temporada</option>
+                {% for s in all_seasons %}
+                <option value="{{ s }}" {% if s == season %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+            </select>
+            
+            <div class="flex items-center gap-2">
+                <input type="date" name="start_date" value="{{ start_date or '' }}" class="nba-input">
+                <input type="date" name="end_date" value="{{ end_date or '' }}" class="nba-input">
             </div>
             
-            <form method="get" class="flex flex-col md:flex-row gap-3 live-search-form bg-slate-50 dark:bg-white/5 p-4 rounded-2xl border border-slate-200 dark:border-white/5 backdrop-blur-sm" data-target="#games-table-container">
-                <select name="season" class="px-4 py-2 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-gray-100 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm transition-all font-bold">
-                    <option value="">Temporada</option>
-                    {% for s in all_seasons %}
-                    <option value="{{ s }}" {% if s == season %}selected{% endif %}>{{ s }}</option>
-                    {% endfor %}
-                </select>
-                
-                <div class="flex items-center gap-2">
-                    <input type="date" name="start_date" value="{{ start_date or '' }}" class="px-4 py-2 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-gray-100 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm transition-all font-medium">
-                    <input type="date" name="end_date" value="{{ end_date or '' }}" class="px-4 py-2 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-gray-100 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm transition-all font-medium">
-                </div>
-                
-                {% if season or start_date or end_date %}
-                <a href="/games" class="px-4 py-2 bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-zinc-300 rounded-xl hover:bg-slate-300 dark:hover:bg-white/20 text-xs font-black transition-all uppercase tracking-tighter flex items-center justify-center">Limpiar</a>
-                {% endif %}
-            </form>
-        </div>
-    </div>
+            {{ clear_filters_btn('/games', show=(season or start_date or end_date)) }}
+        </form>
+    {% endcall %}
 
-    <!-- Games List -->
     {% include "games/_table.html" %}
 </div>
 {% endblock %}

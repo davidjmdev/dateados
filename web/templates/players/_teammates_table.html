@@ -2,14 +2,14 @@
 
 <div id="teammates-table-container">
     <div class="table-container">
-        <table class="min-w-full divide-y divide-gray-100 dark:divide-white/5 border-separate border-spacing-0">
+        <table class="min-w-full divide-y divide-slate-100 dark:divide-white/5 border-separate border-spacing-0">
             {{ stats_table_header([
                 {'label': 'Jugador', 'class': 'text-left px-6'},
                 {'label': 'Temporadas', 'class': 'text-center'},
                 {'label': 'Equipos', 'class': 'text-left'},
                 {'label': 'Años', 'class': 'text-left'}
             ]) }}
-            <tbody class="bg-white dark:bg-zinc-900 divide-y divide-gray-100 dark:divide-white/5">
+            <tbody class="bg-white dark:bg-zinc-900 divide-y divide-slate-100 dark:divide-white/5">
                 {% for teammate in teammates %}
                 <tr class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors cursor-pointer group" onclick="window.location='/players/{{ teammate.id }}'">
                     <td class="px-6 py-4 whitespace-nowrap">
@@ -46,7 +46,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="4" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                    <td colspan="4" class="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
                         {% if search %}
                         No se encontraron compañeros que coincidan con "{{ search }}".
                         {% else %}

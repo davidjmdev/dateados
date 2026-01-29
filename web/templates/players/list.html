@@ -1,50 +1,30 @@
 {% extends "base.html" %}
-{% from "components/nba_components.html" import stats_table_header, pagination, card_container %}
+{% from "components/nba_components.html" import stats_table_header, pagination, card_container, page_header, search_input, select_input, clear_filters_btn %}
 
 {% block title %}Jugadores - Dateados{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
-    <!-- Hero Section -->
-    <div class="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/5 p-8 md:p-12 shadow-xl dark:shadow-2xl transition-colors duration-300">
-        <div class="absolute inset-0 bg-gradient-to-l from-orange-500/10 dark:from-orange-900/20 to-transparent opacity-50"></div>
-        <div class="absolute inset-0 bg-grid-slate-900/[0.02] dark:bg-grid-white/[0.02] bg-[length:30px_30px]"></div>
-        
-        <div class="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
-            <div>
-                <h1 class="text-4xl md:text-5xl font-display font-black text-slate-900 dark:text-white tracking-tighter mb-2">Base de datos de jugadores</h1>
-                <p class="text-slate-600 dark:text-zinc-400 max-w-2xl text-lg font-medium">Explora perfiles detallados, trayectorias y récords históricos.</p>
-            </div>
+    {% call page_header("Base de datos de jugadores", "Explora perfiles detallados, trayectorias y records historicos.") %}
+        <form class="nba-filter-box live-search-form" method="get" data-target="#players-table-container">
+            {{ search_input(name='search', value=search, placeholder='Buscar...') }}
             
-            <!-- Filters Integrated into Hero -->
-            <form class="flex flex-col md:flex-row gap-3 live-search-form bg-slate-50 dark:bg-white/5 p-4 rounded-2xl border border-slate-200 dark:border-white/5 backdrop-blur-sm" method="get" data-target="#players-table-container">
-                <div class="relative">
-                    <input type="text" name="search" value="{{ search or '' }}" placeholder="Buscar..." class="w-full md:w-48 pl-9 pr-4 py-2 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-gray-100 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm transition-all font-medium">
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    </div>
-                </div>
-                
-                <select name="position" class="w-full md:w-auto px-4 py-2 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-gray-100 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm transition-all font-bold">
-                    <option value="">Posición</option>
-                    <option value="Guard" {% if position == 'Guard' %}selected{% endif %}>Guard</option>
-                    <option value="Forward" {% if position == 'Forward' %}selected{% endif %}>Forward</option>
-                    <option value="Center" {% if position == 'Center' %}selected{% endif %}>Center</option>
-                </select>
+            {{ select_input(name='position', options=[
+                {'value': '', 'label': 'Posicion'},
+                {'value': 'Guard', 'label': 'Guard'},
+                {'value': 'Forward', 'label': 'Forward'},
+                {'value': 'Center', 'label': 'Center'}
+            ], selected=position) }}
 
-                <select name="active_only" class="w-full md:w-auto px-4 py-2 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-gray-100 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm transition-all font-bold">
-                    <option value="0" {% if active_only == '0' or active_only is none %}selected{% endif %}>Todos</option>
-                    <option value="1" {% if active_only == '1' %}selected{% endif %}>Activos</option>
-                </select>
-                
-                {% if search or position or active_only %}
-                <a href="/players" class="px-4 py-2 bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-zinc-300 rounded-xl hover:bg-slate-300 dark:hover:bg-white/20 text-xs font-black transition-all text-center uppercase tracking-tighter flex items-center justify-center">Limpiar</a>
-                {% endif %}
-            </form>
-        </div>
-    </div>
+            {{ select_input(name='active_only', options=[
+                {'value': '0', 'label': 'Todos'},
+                {'value': '1', 'label': 'Activos'}
+            ], selected=active_only or '0') }}
+            
+            {{ clear_filters_btn('/players', show=(search or position or active_only)) }}
+        </form>
+    {% endcall %}
     
-    <!-- Table -->
     {% call card_container() %}
         {% include "players/_table.html" %}
     {% endcall %}

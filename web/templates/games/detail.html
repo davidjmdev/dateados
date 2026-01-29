@@ -126,9 +126,9 @@
                 {'label': 'FT'},
                 {'label': '+/-'}
             ]) }}
-            <tbody class="divide-y divide-gray-100 dark:divide-white/5">
+            <tbody class="divide-y divide-slate-100 dark:divide-white/5">
                 {% for stat in stats %}
-                <tr class="hover:bg-gray-50 dark:hover:bg-white/5 transition group">
+                <tr class="hover:bg-slate-50 dark:hover:bg-white/5 transition group">
                     <td class="px-3 md:px-4 py-3 sticky-column bg-inherit whitespace-nowrap">
                         <a href="/players/{{ stat.player_id }}" class="font-bold text-zinc-700 dark:text-zinc-200 group-hover:text-orange-500 transition-colors">
                             {{ stat.player }}
@@ -137,9 +137,9 @@
                     <td class="px-2 py-3 text-center font-mono text-zinc-500 dark:text-zinc-400">
                         {{ stat.min or '-' }}
                     </td>
-                    <td class="px-2 py-3 text-center font-mono font-bold text-gray-900 dark:text-white bg-gray-50/50 dark:bg-white/5">{{ stat.pts }}</td>
-                    <td class="px-2 py-3 text-center font-mono text-gray-900 dark:text-zinc-300">{{ stat.reb }}</td>
-                    <td class="px-2 py-3 text-center font-mono text-gray-900 dark:text-zinc-300">{{ stat.ast }}</td>
+                    <td class="px-2 py-3 text-center font-mono font-bold text-slate-900 dark:text-white bg-slate-50/50 dark:bg-white/5">{{ stat.pts }}</td>
+                    <td class="px-2 py-3 text-center font-mono text-slate-900 dark:text-zinc-300">{{ stat.reb }}</td>
+                    <td class="px-2 py-3 text-center font-mono text-slate-900 dark:text-zinc-300">{{ stat.ast }}</td>
                     <td class="px-2 py-3 text-center font-mono text-zinc-500 dark:text-zinc-400">{{ stat.stl }}</td>
                     <td class="px-2 py-3 text-center font-mono text-zinc-500 dark:text-zinc-400">{{ stat.blk }}</td>
                     <td class="px-2 py-3 text-center font-mono text-zinc-500 dark:text-zinc-400">{{ stat.tov }}</td>
@@ -154,7 +154,7 @@
                 {% endfor %}
             </tbody>
             {% if totals %}
-            <tfoot class="border-t-2 border-gray-200 dark:border-white/10">
+            <tfoot class="border-t-2 border-slate-200 dark:border-white/10">
                 {{ summary_row('TOTALES', [
                     {'value': totals.total_pts, 'highlight': True},
                     {'value': totals.total_reb},
