@@ -16,7 +16,7 @@
     {{ stats_summary_bar([
         {'label': 'Hitos Historicos', 'value': total_historical|default(0), 'color': 'indigo', 'icon': 'M5 3v18l15-9L5 3z'},
         {'label': 'En Curso', 'value': total_active|default(0), 'color': 'green', 'icon': 'M13 10V3L4 14h7v7l9-11h-7z'},
-        {'label': 'Rotas (30d)', 'value': total_broken|default(0), 'color': 'red', 'icon': 'M6 18L18 6M6 6l12 12'}
+        {'label': 'Rotas (7d)', 'value': total_broken|default(0), 'color': 'red', 'icon': 'M6 18L18 6M6 6l12 12'}
     ], columns=3) }}
 
     <div class="nba-pill-container">

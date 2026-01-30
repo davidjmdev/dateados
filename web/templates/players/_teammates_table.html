@@ -1,62 +1,19 @@
-{% from "components/nba_components.html" import stats_table_header, pagination, badge %}
+{% from "components/nba_components.html" import stats_table_header, pagination, badge, teammate_card %}
 
 <div id="teammates-table-container">
-    <div class="table-container">
-        <table class="min-w-full divide-y divide-slate-100 dark:divide-white/5 border-separate border-spacing-0">
-            {{ stats_table_header([
-                {'label': 'Jugador', 'class': 'text-left px-6'},
-                {'label': 'Temporadas', 'class': 'text-center'},
-                {'label': 'Equipos', 'class': 'text-left'},
-                {'label': 'Años', 'class': 'text-left'}
-            ]) }}
-            <tbody class="bg-white dark:bg-zinc-900 divide-y divide-slate-100 dark:divide-white/5">
-                {% for teammate in teammates %}
-                <tr class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors cursor-pointer group" onclick="window.location='/players/{{ teammate.id }}'">
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="flex items-center space-x-3">
-                             <div class="h-10 w-10 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center text-zinc-500 font-bold overflow-hidden border border-slate-200 dark:border-white/10 group-hover:border-orange-500/50 transition-colors">
-                                 <img src="https://cdn.nba.com/headshots/nba/latest/260x190/{{ teammate.id }}.png" 
-                                      alt="{{ teammate.full_name }}"
-                                      onerror="this.onerror=null; this.src='https://via.placeholder.com/60?text={{ teammate.full_name[:1] }}'"
-                                      class="h-full w-full object-cover">
-                             </div>
-                            <div>
-                                <div class="text-sm font-bold text-slate-900 dark:text-zinc-100 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">{{ teammate.full_name }}</div>
-                                <div class="text-[10px] font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-tight">{{ teammate.position }}</div>
-                            </div>
-                        </div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-center">
-                        <span class="text-slate-900 dark:text-white font-black text-sm">
-                            {{ teammate.total_seasons }}
-                        </span>
-                    </td>
-                    <td class="px-6 py-4">
-                        <div class="flex flex-wrap gap-1">
-                            {% for team in teammate.teams_together %}
-                                {{ badge(team.abbreviation, type='default', class='text-[9px]') }}
-                            {% endfor %}
-                        </div>
-                    </td>
-                    <td class="px-6 py-4">
-                        <div class="text-xs text-slate-500 dark:text-zinc-400 font-mono font-medium">
-                            {{ teammate.seasons_together|join(', ') }}
-                        </div>
-                    </td>
-                </tr>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+        {% for teammate in teammates %}
+            {% set shared_info = teammate.total_seasons ~ " temp (" ~ (teammate.seasons_together|length) ~ " años)" %}
+            {{ teammate_card(teammate, subtext=shared_info, right_val=teammate.total_seasons) }}
+        {% else %}
+            <div class="col-span-full py-12 text-center text-slate-500 dark:text-slate-400 font-medium italic">
+                {% if search %}
+                    No se encontraron compañeros que coincidan con "{{ search }}".
                 {% else %}
-                <tr>
-                    <td colspan="4" class="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
-                        {% if search %}
-                        No se encontraron compañeros que coincidan con "{{ search }}".
-                        {% else %}
-                        No hay información de compañeros históricos disponible.
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                    No hay información de compañeros históricos disponible.
+                {% endif %}
+            </div>
+        {% endfor %}
     </div>
 
     <!-- Pagination -->

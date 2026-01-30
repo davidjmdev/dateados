@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "components/nba_components.html" import card_container, page_header %}
+{% from "components/nba_components.html" import card_container, page_header, season_selector %}
 
 {% block title %}Lideres - Dateados{% endblock %}
 
@@ -7,11 +7,7 @@
 <div class="space-y-8">
     {% call page_header("Lideres de la Temporada", "Los mejores rendimientos estadisticos del ano.") %}
         <form method="get" class="nba-filter-box live-search-form" data-target="#leaders-grid-container">
-            <select name="season" class="nba-select">
-                {% for s in all_seasons %}
-                <option value="{{ s }}" {% if s == season %}selected{% endif %}>{{ s }}</option>
-                {% endfor %}
-            </select>
+            {{ season_selector(all_seasons, season) }}
         </form>
     {% endcall %}
 

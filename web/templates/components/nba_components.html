@@ -173,6 +173,27 @@
 
 
 {# ----------------------------------------
+   Season Selector - Standardized season picker
+   Usage:
+     {{ season_selector(all_seasons, current_season) }}
+   ---------------------------------------- #}
+{% macro season_selector(all_seasons, selected, name='season', label=None, onchange=None) %}
+<div class="flex items-center gap-3">
+    {% if label %}
+    <span class="text-[10px] font-black text-slate-500 dark:text-zinc-400 uppercase tracking-widest whitespace-nowrap">{{ label }}</span>
+    {% endif %}
+    <select name="{{ name }}" 
+            {% if onchange %}onchange="{{ onchange }}"{% endif %}
+            class="nba-select flex-grow md:flex-grow-0">
+        {% for s in all_seasons %}
+        <option value="{{ s }}" {% if s == selected %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+    </select>
+</div>
+{% endmacro %}
+
+
+{# ----------------------------------------
    Filter Box - Container for filter controls
    Usage:
      {% call filter_box(form_action='/players', form_target='#players-table-container') %}
@@ -338,7 +359,7 @@
 {% endif %}
 {% endmacro %}
 
-{% macro card_container(title=None, icon_url=None, class='') %}
+{% macro card_container(title=None, icon_url=None, header_url=None, header_label='Ver todos', class='') %}
 <div class="nba-card {{ class }} flex flex-col">
     {% if title %}
     <div class="px-4 md:px-6 py-4 border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-black/20 flex items-center justify-between backdrop-blur-sm">
@@ -350,12 +371,103 @@
             {% endif %}
             <h3 class="font-display font-black text-xs md:text-sm text-slate-900 dark:text-white uppercase tracking-widest">{{ title }}</h3>
         </div>
+        {% if header_url %}
+        <a href="{{ header_url }}" class="text-[10px] font-bold text-orange-600 dark:text-orange-500 hover:text-orange-400 uppercase tracking-wider transition-colors">
+            {{ header_label }}
+        </a>
+        {% endif %}
     </div>
     {% endif %}
     <div class="flex-grow">
         {{ caller() }}
     </div>
 </div>
+{% endmacro %}
+
+{# ----------------------------------------
+   NBA List Card - Generic row for lists (Games, Players, etc.)
+   ---------------------------------------- #}
+{% macro nba_list_card(title, subtitle, image_url, url, right_val=None, badge_text=None, badge_type='default', image_class='') %}
+<div class="flex items-center justify-between p-3 bg-slate-50/50 dark:bg-white/5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition cursor-pointer border border-transparent hover:border-slate-200 dark:hover:border-white/10 group" onclick="window.location='{{ url }}'">
+    <div class="flex items-center space-x-3 overflow-hidden">
+        <!-- Left: Image/Icon with optional badge -->
+        <div class="relative flex-shrink-0">
+            <div class="h-10 w-10 md:h-12 md:w-12 rounded-full bg-slate-100 dark:bg-zinc-800 flex items-center justify-center overflow-hidden border border-slate-200 dark:border-white/10 group-hover:border-orange-500/50 transition-colors">
+                <img src="{{ image_url }}" 
+                     alt="" 
+                     onerror="this.onerror=null; this.src='https://via.placeholder.com/50?text=?'"
+                     class="{{ image_class or 'h-[120%] w-[120%] object-cover object-top mt-1' }}">
+            </div>
+            {% if badge_text %}
+            <span class="absolute -bottom-1 -right-1 inline-flex items-center justify-center w-5 h-5 text-[9px] font-black rounded border-2 border-white dark:border-zinc-900 shadow-sm
+                {% if badge_type == 'success' %}text-green-500 bg-green-500/10 border-green-500/20
+                {% elif badge_type == 'error' %}text-red-500 bg-red-500/10 border-red-500/20
+                {% else %}text-zinc-500 bg-zinc-500/10 border-zinc-500/20{% endif %}">
+                {{ badge_text }}
+            </span>
+            {% endif %}
+        </div>
+
+        <!-- Center: Title & Subtitle -->
+        <div class="min-w-0">
+            <span class="block text-sm font-display font-black text-slate-900 dark:text-white group-hover:text-orange-600 transition-colors truncate">
+                {{ title }}
+            </span>
+            <span class="block text-[10px] font-bold text-zinc-500 dark:text-zinc-500 uppercase tracking-widest truncate">
+                {{ subtitle }}
+            </span>
+        </div>
+    </div>
+    
+    <!-- Right: Value or Action -->
+    <div class="text-right min-w-[3rem] flex items-center justify-end">
+        {% if right_val is not none %}
+        <span class="text-sm font-mono font-bold text-slate-900 dark:text-white block group-hover:text-orange-500 transition-colors">
+            {{ right_val }}
+        </span>
+        {% else %}
+        <div class="text-zinc-400 dark:text-zinc-600 group-hover:text-orange-500 transition-colors">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endmacro %}
+
+{# ----------------------------------------
+   Teammate Card - Specialization of nba_list_card
+   ---------------------------------------- #}
+{% macro teammate_card(teammate, subtext=None, right_val=None) %}
+    {{ nba_list_card(
+        title=teammate.full_name,
+        subtitle=subtext or teammate.position,
+        image_url="https://cdn.nba.com/headshots/nba/latest/260x190/" ~ teammate.id ~ ".png",
+        url="/players/" ~ teammate.id,
+        right_val=right_val
+    ) }}
+{% endmacro %}
+
+{# ----------------------------------------
+   Game Card - Specialization of nba_list_card
+   ---------------------------------------- #}
+{% macro game_list_card(game, team_id) %}
+    {% set is_home = (game.home_team_id == team_id) %}
+    {% set opp = game.away_team if is_home else game.home_team %}
+    {% set is_winner = (is_home and game.home_score > game.away_score) or (not is_home and game.away_score > game.home_score) %}
+    {% set score_display = (game.home_score ~ "-" ~ game.away_score) if is_home else (game.away_score ~ "-" ~ game.home_score) %}
+    
+    {{ nba_list_card(
+        title=opp.abbreviation,
+        subtitle=("VS " if is_home else "@ ") ~ (game.date|string)[5:],
+        image_url="https://cdn.nba.com/logos/nba/" ~ opp.id ~ "/primary/L/logo.svg",
+        url="/games/" ~ game.id,
+        right_val=score_display,
+        badge_text=('W' if is_winner else 'L'),
+        badge_type=('success' if is_winner else 'error'),
+        image_class='h-6 w-6 object-contain'
+    ) }}
 {% endmacro %}
 
 {% macro bracket_series_card(series, season, is_ist=False) %}

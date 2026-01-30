@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "components/nba_components.html" import badge, pagination, page_header, clear_filters_btn %}
+{% from "components/nba_components.html" import badge, pagination, page_header, clear_filters_btn, season_selector %}
 
 {% block title %}Partidos - Dateados{% endblock %}
 
@@ -7,19 +7,19 @@
 <div class="space-y-8">
     {% call page_header("Archivo de Partidos", "Resultados, boxscores y analitica de cada encuentro.") %}
         <form method="get" class="nba-filter-box live-search-form" data-target="#games-table-container">
-            <select name="season" class="nba-select">
-                <option value="">Temporada</option>
-                {% for s in all_seasons %}
-                <option value="{{ s }}" {% if s == season %}selected{% endif %}>{{ s }}</option>
+            {{ season_selector(all_seasons, season) }}
+
+            <select name="team_id" class="nba-select">
+                <option value="">Equipo</option>
+                {% for t in all_teams %}
+                <option value="{{ t.id }}" {% if t.id|string == team_id|string %}selected{% endif %}>{{ t.full_name }}</option>
                 {% endfor %}
             </select>
             
-            <div class="flex items-center gap-2">
-                <input type="date" name="start_date" value="{{ start_date or '' }}" class="nba-input">
-                <input type="date" name="end_date" value="{{ end_date or '' }}" class="nba-input">
-            </div>
-            
-            {{ clear_filters_btn('/games', show=(season or start_date or end_date)) }}
+            <input type="date" name="date" value="{{ date or '' }}" 
+                   {% if min_date %}min="{{ min_date }}"{% endif %}
+                   {% if max_date %}max="{{ max_date }}"{% endif %}
+                   class="nba-input md:w-48">
         </form>
     {% endcall %}
 

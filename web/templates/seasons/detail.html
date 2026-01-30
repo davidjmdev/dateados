@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "components/nba_components.html" import stats_table_header, card_container, bracket_series_card, page_header, pill_tabs_js %}
+{% from "components/nba_components.html" import stats_table_header, card_container, bracket_series_card, page_header, pill_tabs_js, season_selector %}
 
 {% block title %}Temporada {{ season }} - Dateados{% endblock %}
 
@@ -7,12 +7,7 @@
 <div class="space-y-8">
     {% call page_header("Temporada " ~ season, "Resultados, clasificaciones y estadisticas del ano.") %}
         <div class="nba-filter-box">
-            <span class="text-[10px] font-black text-slate-500 dark:text-zinc-400 uppercase tracking-widest">Cambiar Temporada:</span>
-            <select onchange="window.location.href='/seasons/' + this.value" class="nba-select">
-                {% for s in all_seasons %}
-                <option value="{{ s }}" {% if s == season %}selected{% endif %}>{{ s }}</option>
-                {% endfor %}
-            </select>
+            {{ season_selector(all_seasons, season, onchange="window.location.href='/seasons/' + this.value") }}
         </div>
     {% endcall %}
 

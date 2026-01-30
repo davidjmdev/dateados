@@ -207,7 +207,7 @@ def _build_broken_streaks_query(
     if not latest_game_date:
         return None
         
-    start_date = latest_game_date - timedelta(days=30)
+    start_date = latest_game_date - timedelta(days=7)
     shooting_types = ['fg_pct_60', 'fg3_pct_50', 'ft_pct_90']
     
     query = (
