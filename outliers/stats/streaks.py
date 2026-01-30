@@ -262,6 +262,11 @@ class StreakDetector(BaseDetector):
         ).first()
         
         if active_streak:
+            # Idempotencia: Si el último partido procesado de esta racha es el mismo que el actual,
+            # no incrementamos la racha (evita duplicados por re-procesamiento).
+            if active_streak.last_game_id == game.id:
+                return None
+
             active_streak.length += 1
             active_streak.ended_at = game.date
             active_streak.last_game_id = game.id
@@ -396,6 +401,12 @@ class StreakDetector(BaseDetector):
         ).first()
         
         if active_streak:
+            # Idempotencia: Si la racha ya se marcó como terminada en este partido o uno posterior, ignorar
+            if active_streak.last_game_id == game.id:
+                active_streak.is_active = False
+                if commit: session.commit()
+                return
+
             active_streak.is_active = False
             active_streak.ended_at = game.date
             active_streak.last_game_id = game.id
@@ -550,7 +561,10 @@ class StreakDetector(BaseDetector):
 
         session.commit()
         
-        # Paso final: Actualizar is_historical_outlier dinámicamente para todas las rachas
+        # Paso final: Asegurar que la tabla de récords históricos no esté vacía
+        self.ensure_all_time_records_exist(session)
+
+        # Paso final 2: Actualizar is_historical_outlier dinámicamente para todas las rachas
         logger.info("Actualizando distintivos de 'HISTÓRICA' basados en los récords finales...")
         self._update_historical_badges(session)
         
@@ -573,7 +587,63 @@ class StreakDetector(BaseDetector):
                 .values(is_historical_outlier=True)
             )
         session.commit()
-    
+
+    def ensure_all_time_records_exist(self, session: Session) -> None:
+        """Garantiza que existan registros en StreakAllTimeRecord para evitar backfills infinitos.
+        
+        Si un tipo de racha no tiene récord histórico, busca la racha más larga en la BD
+        o inserta un valor por defecto.
+        """
+        from datetime import date
+        competition_types = ['regular', 'playoffs', 'nba_cup']
+        streak_types = list(StreakCriteria.get_all_criteria().keys())
+
+        for ctype in competition_types:
+            for stype in streak_types:
+                exists = session.query(StreakAllTimeRecord).filter(
+                    and_(
+                        StreakAllTimeRecord.streak_type == stype,
+                        StreakAllTimeRecord.competition_type == ctype
+                    )
+                ).first()
+
+                if not exists:
+                    # Intentar encontrar la racha más larga existente para este tipo
+                    best = session.query(StreakRecord).filter(
+                        and_(
+                            StreakRecord.streak_type == stype,
+                            StreakRecord.competition_type == ctype
+                        )
+                    ).order_by(StreakRecord.length.desc()).first()
+
+                    if best:
+                        record = StreakAllTimeRecord(
+                            streak_type=stype,
+                            competition_type=ctype,
+                            player_id=best.player_id,
+                            length=best.length,
+                            started_at=best.started_at,
+                            ended_at=best.ended_at,
+                            game_id_start=best.first_game_id,
+                            game_id_end=best.last_game_id
+                        )
+                        session.add(record)
+                    else:
+                        # Si no hay absolutamente nada, insertar un placeholder
+                        any_player = session.query(Player.id).first()
+                        if any_player:
+                            record = StreakAllTimeRecord(
+                                streak_type=stype,
+                                competition_type=ctype,
+                                player_id=any_player.id,
+                                length=1,
+                                started_at=date(1983, 10, 1),
+                                game_id_start="0000000001"
+                            )
+                            session.add(record)
+        
+        session.commit()
+
     def _clear_season_streaks(self, session: Session, season: str) -> None:
         """Elimina rachas de una temporada específica."""
         dates = session.query(Game.date).filter(Game.season == season).all()

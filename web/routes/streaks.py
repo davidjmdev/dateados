@@ -6,11 +6,13 @@ y tipos de hitos estadísticos.
 
 from fastapi import APIRouter, Request, Depends, Query
 from fastapi.templating import Jinja2Templates
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_
+from sqlalchemy import func, and_, cast, Float, or_, case
 from pathlib import Path
 from typing import Optional, List, Dict
 from datetime import timedelta
+from math import ceil
 
 from db.connection import get_session
 from db.models import Game, Player
@@ -49,6 +51,8 @@ async def streaks_index(
     request: Request,
     comp: str = Query("regular"), # 'regular', 'playoffs', 'nba_cup'
     type: str = Query("all"),      # 'all', 'pts_20', 'pts_30', etc.
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=10, le=100),
     db: Session = Depends(get_db)
 ):
     """Página principal de rachas."""
@@ -60,26 +64,78 @@ async def streaks_index(
     # Obtener todos los tipos de racha disponibles para los filtros
     available_streak_types = list(StreakCriteria.get_all_criteria().keys())
     
-    # 1. Récords All-Time para la competición seleccionada
+    # Récords All-Time (para contexto y filtrado de relevancia)
     all_time_records = _get_streak_all_time_records(db, comp)
     
-    # 2. Rachas Activas (filtradas por competición y tipo)
-    active_streaks = _get_active_streaks(
-        db, 
-        limit=50, 
-        competition_type=comp, 
-        streak_type=None if type == "all" else type,
-        all_time_records=all_time_records
-    )
+    # Paginación unificada: Contar total (activas + rotas recientes)
+    # 1. Contar activas (con filtro de relevancia en SQL)
+    active_query = _build_active_streaks_query(db, comp, None if type == "all" else type)
+    total_active = db.query(func.count()).select_from(active_query.subquery()).scalar() or 0
     
-    # 3. Rachas Recientemente Rotas (últimos 30 días)
-    broken_streaks = _get_recently_broken_streaks(
-        db,
-        limit=20,
-        competition_type=comp,
-        streak_type=None if type == "all" else type,
-        all_time_records=all_time_records
-    )
+    # 2. Contar rotas (con filtro de relevancia en SQL)
+    broken_query = _build_broken_streaks_query(db, comp, None if type == "all" else type)
+    total_broken = 0
+    if broken_query:
+        total_broken = db.query(func.count()).select_from(broken_query.subquery()).scalar() or 0
+    
+    # 3. Contar hitos históricos (longitud >= record o outlier marcado)
+    total_historical = db.query(func.count()).select_from(
+        active_query.filter(
+            or_(
+                StreakRecord.length >= func.coalesce(StreakAllTimeRecord.length, 999),
+                StreakRecord.is_historical_outlier == True
+            )
+        ).subquery()
+    ).scalar() or 0
+        
+    total_items = total_active + total_broken
+    total_pages = ceil(total_items / per_page) if total_items > 0 else 0
+    
+    # Validar página
+    if total_pages > 0 and page > total_pages:
+        page = total_pages
+        
+    offset = (page - 1) * per_page
+    
+    # Obtener datos paginados (primero activas, luego rotas)
+    active_streaks = []
+    broken_streaks = []
+    
+    # Lógica de distribución de items entre activas y rotas según el offset
+    if offset < total_active:
+        # La página actual contiene al menos algunas rachas activas
+        limit_active = per_page
+        active_streaks = _get_active_streaks(
+            db, 
+            limit=limit_active, 
+            offset=offset,
+            competition_type=comp, 
+            streak_type=None if type == "all" else type,
+            all_time_records=all_time_records
+        )
+        
+        # Si sobran espacios en la página, rellenar con las primeras rachas rotas
+        remaining_slots = per_page - len(active_streaks)
+        if remaining_slots > 0 and total_broken > 0:
+            broken_streaks = _get_recently_broken_streaks(
+                db,
+                limit=remaining_slots,
+                offset=0,
+                competition_type=comp,
+                streak_type=None if type == "all" else type,
+                all_time_records=all_time_records
+            )
+    else:
+        # La página actual contiene solo rachas rotas
+        broken_offset = offset - total_active
+        broken_streaks = _get_recently_broken_streaks(
+            db,
+            limit=per_page,
+            offset=broken_offset,
+            competition_type=comp,
+            streak_type=None if type == "all" else type,
+            all_time_records=all_time_records
+        )
     
     return templates.TemplateResponse("streaks/index.html", {
         "request": request,
@@ -90,24 +146,34 @@ async def streaks_index(
         "streak_names": STREAK_TYPE_NAMES,
         "active_streaks": active_streaks,
         "broken_streaks": broken_streaks,
+        "total_active": total_active,
+        "total_broken": total_broken,
+        "total_historical": total_historical,
         "all_time_records": all_time_records,
-        "season": season
+        "season": season,
+        "page": page,
+        "total_pages": total_pages,
+        "per_page": per_page
     })
 
 
 # ============ Helper Functions ============
 
-def _get_active_streaks(
-    db: Session, 
-    limit: int = 20,
-    competition_type: str = 'regular',
-    streak_type: Optional[str] = None,
-    all_time_records: Optional[dict] = None
-) -> List[dict]:
-    """Obtiene las rachas activas con contexto histórico y blindaje anti-duplicados."""
+def _build_active_streaks_query(
+    db: Session,
+    competition_type: str,
+    streak_type: Optional[str] = None
+):
+    """Construye query base para rachas activas con filtro de relevancia SQL."""
+    shooting_types = ['fg_pct_60', 'fg3_pct_50', 'ft_pct_90']
+    
     query = (
         db.query(StreakRecord, Player)
         .join(Player, StreakRecord.player_id == Player.id)
+        .outerjoin(StreakAllTimeRecord, and_(
+            StreakRecord.streak_type == StreakAllTimeRecord.streak_type,
+            StreakRecord.competition_type == StreakAllTimeRecord.competition_type
+        ))
         .filter(and_(
             StreakRecord.is_active == True, 
             Player.is_active == True,
@@ -115,30 +181,84 @@ def _get_active_streaks(
         ))
     )
     
+    # Filtro de relevancia SQL:
+    # - Para porcentajes de tiro: mínimo 3 partidos
+    # - General: length >= max(2, all_time_length * 0.05)
+    query = query.filter(
+        case(
+            (StreakRecord.streak_type.in_(shooting_types), StreakRecord.length >= 3),
+            else_=StreakRecord.length >= func.greatest(2, cast(func.coalesce(StreakAllTimeRecord.length, 2), Float) * 0.05)
+        )
+    )
+    
     if streak_type:
         query = query.filter(StreakRecord.streak_type == streak_type)
         
+    return query
+
+
+def _build_broken_streaks_query(
+    db: Session,
+    competition_type: str,
+    streak_type: Optional[str] = None
+):
+    """Construye query base para rachas recientemente terminadas con filtro de relevancia SQL."""
+    latest_game_date = db.query(func.max(Game.date)).scalar()
+    if not latest_game_date:
+        return None
+        
+    start_date = latest_game_date - timedelta(days=30)
+    shooting_types = ['fg_pct_60', 'fg3_pct_50', 'ft_pct_90']
+    
+    query = (
+        db.query(StreakRecord, Player)
+        .join(Player, StreakRecord.player_id == Player.id)
+        .outerjoin(StreakAllTimeRecord, and_(
+            StreakRecord.streak_type == StreakAllTimeRecord.streak_type,
+            StreakRecord.competition_type == StreakAllTimeRecord.competition_type
+        ))
+        .filter(and_(
+            StreakRecord.is_active == False,
+            StreakRecord.ended_at >= start_date,
+            StreakRecord.competition_type == competition_type
+        ))
+    )
+    
+    # Filtro de relevancia SQL:
+    # - Para porcentajes de tiro: mínimo 3 partidos
+    # - General: length >= max(2, all_time_length * 0.05)
+    query = query.filter(
+        case(
+            (StreakRecord.streak_type.in_(shooting_types), StreakRecord.length >= 3),
+            else_=StreakRecord.length >= func.greatest(2, cast(func.coalesce(StreakAllTimeRecord.length, 2), Float) * 0.05)
+        )
+    )
+    
+    if streak_type:
+        query = query.filter(StreakRecord.streak_type == streak_type)
+        
+    return query
+
+
+def _get_active_streaks(
+    db: Session, 
+    limit: int = 20,
+    offset: int = 0,
+    competition_type: str = 'regular',
+    streak_type: Optional[str] = None,
+    all_time_records: Optional[dict] = None
+) -> List[dict]:
+    """Obtiene las rachas activas (ya filtradas por SQL)."""
+    query = _build_active_streaks_query(db, competition_type, streak_type)
     query = query.order_by(StreakRecord.length.desc())
     
-    all_potential = query.limit(limit * 3).all()
+    # Al estar filtradas por SQL, limit y offset son directos
+    results_raw = query.offset(offset).limit(limit).all()
     
     results = []
-    seen_players = set()
-    
-    for streak, player in all_potential:
-        # Blindaje anti-duplicados: Un jugador solo puede tener una racha activa por tipo
-        key = (player.id, streak.streak_type)
-        if key in seen_players:
-            continue
-            
+    for streak, player in results_raw:
         record = all_time_records.get(streak.streak_type) if all_time_records else None
         all_time_length = record['length'] if record else 2
-        
-        # Filtro de relevancia: al menos 5% del récord (con suelo de 2 partidos)
-        relevance_threshold = max(2, all_time_length * 0.05)
-        if streak.length < relevance_threshold:
-            continue
-            
         progress = min(100, int(100 * streak.length / all_time_length)) if all_time_length > 0 else 0
         
         results.append({
@@ -153,59 +273,29 @@ def _get_active_streaks(
             'started_at': streak.started_at.strftime('%d/%m/%Y') if streak.started_at else None,
             'is_historical': streak.length >= all_time_length or streak.is_historical_outlier,
         })
-        seen_players.add(key)
     
-    return results[:limit]
+    return results
 
 
 def _get_recently_broken_streaks(
     db: Session,
     limit: int = 15,
+    offset: int = 0,
     competition_type: str = 'regular',
     streak_type: Optional[str] = None,
     all_time_records: Optional[dict] = None
 ) -> List[dict]:
-    """Obtiene rachas terminadas recientemente con blindaje anti-duplicados."""
-    latest_game_date = db.query(func.max(Game.date)).scalar()
-    if not latest_game_date:
+    """Obtiene rachas terminadas recientemente (ya filtradas por SQL)."""
+    query = _build_broken_streaks_query(db, competition_type, streak_type)
+    if not query:
         return []
-        
-    start_date = latest_game_date - timedelta(days=30)
-    
-    query = (
-        db.query(StreakRecord, Player)
-        .join(Player, StreakRecord.player_id == Player.id)
-        .filter(and_(
-            StreakRecord.is_active == False,
-            StreakRecord.ended_at >= start_date,
-            StreakRecord.competition_type == competition_type
-        ))
-    )
-    
-    if streak_type:
-        query = query.filter(StreakRecord.streak_type == streak_type)
         
     query = query.order_by(StreakRecord.ended_at.desc(), StreakRecord.length.desc())
     
-    all_potential = query.limit(limit * 3).all()
+    results_raw = query.offset(offset).limit(limit).all()
     
     results = []
-    seen_broken = set()
-    
-    for streak, player in all_potential:
-        # Blindaje anti-duplicados: misma persona, tipo, fin y longitud
-        key = (player.id, streak.streak_type, streak.ended_at, streak.length)
-        if key in seen_broken:
-            continue
-            
-        record = all_time_records.get(streak.streak_type) if all_time_records else None
-        all_time_length = record['length'] if record else 2
-        
-        # Filtro de relevancia: al menos 5% del récord (con suelo de 2 partidos)
-        relevance_threshold = max(2, all_time_length * 0.05)
-        if streak.length < relevance_threshold:
-            continue
-
+    for streak, player in results_raw:
         results.append({
             'id': streak.id,
             'player_id': player.id,
@@ -216,9 +306,8 @@ def _get_recently_broken_streaks(
             'ended_at': streak.ended_at.strftime('%d/%m/%Y') if streak.ended_at else None,
             'is_historical': streak.is_historical_outlier
         })
-        seen_broken.add(key)
         
-    return results[:limit]
+    return results
 
 
 def _get_streak_all_time_records(db: Session, competition_type: str = 'regular') -> dict:

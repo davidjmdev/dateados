@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "components/nba_components.html" import badge, stats_table_header, page_header, window_selector, stats_summary_bar, pill_tabs, empty_state %}
+{% from "components/nba_components.html" import badge, stats_table_header, page_header, window_selector, stats_summary_bar, pill_tabs, empty_state, pagination %}
 
 {% block title %}Outliers - Dateados{% endblock %}
 
@@ -25,6 +25,7 @@
     ], active_id=tab) }}
 
     {% if tab == 'league' %}
+<div id="league-table-container">
     <div class="nba-card overflow-hidden">
         <div class="px-6 py-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between bg-slate-50/50 dark:bg-black/20 backdrop-blur-sm">
             <div>
@@ -74,9 +75,17 @@
         {% else %}
         {{ empty_state("No se han detectado anomalias de liga para esta temporada.") }}
         {% endif %}
+        
+        {{ pagination(page, total_league_pages, '/outliers', {
+            'tab': 'league',
+            'season': season,
+            'window': window
+        }) if total_league_pages }}
     </div>
+</div>
 
-    {% elif tab == 'player' %}
+{% elif tab == 'player' %}
+<div id="player-table-container">
     <div class="nba-card overflow-hidden">
         <div class="px-6 py-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between bg-slate-50/50 dark:bg-black/20 backdrop-blur-sm">
             <div>
@@ -121,30 +130,37 @@
                             {% elif o.pts is defined %}
                                 {{ o.pts }} <span class="text-[9px] text-zinc-400 uppercase">PTS</span>
                             {% else %}
-                                {% set top_f = o.outlier_features[0].feature %}
-                                {{ o.comparison_data[top_f].current_avg }} <span class="text-[9px] text-zinc-400 uppercase">{{ top_f }}</span>
+                                -
                             {% endif %}
                         </td>
                         <td class="px-4 py-4 text-center text-slate-500 dark:text-zinc-500 font-mono text-[10px]">
                             {% if o.primary_avg is defined %}
                                 {{ o.primary_avg }}
-                            {% elif o.comparison_data is defined %}
-                                {% set top_f = o.outlier_features[0].feature %}
-                                {{ o.comparison_data[top_f].baseline_avg }}
                             {% else %}
                                 -
                             {% endif %}
                         </td>
                         <td class="px-4 py-4 text-center font-mono font-black text-slate-900 dark:text-white">
-                            <span class="{% if o.max_z_score > 0 %}text-green-600 dark:text-green-400{% else %}text-red-500 dark:text-red-400{% endif %} text-lg font-display">
+                            <span class="{% if o.outlier_type == 'explosion' %}text-green-600 dark:text-green-400{% else %}text-red-500 dark:text-red-400{% endif %} text-lg font-display">
                                 {% if o.max_z_score > 0 %}+{% endif %}{{ o.max_z_score }}
                             </span>
                         </td>
                         <td class="px-6 py-4">
                             <div class="flex flex-wrap gap-1">
                                 {% for f in o.outlier_features[:3] %}
-                                <span class="px-2 py-0.5 rounded text-[9px] font-bold {% if f.z_score > 0 %}bg-green-500/10 text-green-700 dark:text-green-400{% else %}bg-red-500/10 text-red-700 dark:text-red-400{% endif %} uppercase tracking-tighter">
-                                    {{ stat_names.get(f.feature, f.feature) }}: {{ f.z_score }}
+                                <span class="px-2 py-0.5 rounded text-[9px] font-bold 
+                                    {% if f.sentiment is defined %}
+                                        {% if f.sentiment == 'positive' %}bg-green-500/10 text-green-700 dark:text-green-400{% else %}bg-red-500/10 text-red-700 dark:text-red-400{% endif %}
+                                    {% else %}
+                                        {# Fallback para registros antiguos: TOV alto es negativo, resto alto es positivo #}
+                                        {% if (f.feature == 'tov' and f.z_score < 0) or (f.feature != 'tov' and f.z_score > 0) %}
+                                            bg-green-500/10 text-green-700 dark:text-green-400
+                                        {% else %}
+                                            bg-red-500/10 text-red-700 dark:text-red-400
+                                        {% endif %}
+                                    {% endif %} 
+                                    uppercase tracking-tighter">
+                                    {{ stat_names.get(f.feature, f.feature) }}: {{ f.val }}
                                 </span>
                                 {% endfor %}
                             </div>
@@ -157,7 +173,13 @@
         {% else %}
         {{ empty_state("No hay explosiones ni crisis detectadas en este periodo.") }}
         {% endif %}
+
+        {{ pagination(page, total_player_pages, '/outliers', {
+            'tab': 'player',
+            'season': season,
+            'window': window
+        }) if total_player_pages }}
     </div>
-    {% endif %}
 </div>
+{% endif %}
 {% endblock %}

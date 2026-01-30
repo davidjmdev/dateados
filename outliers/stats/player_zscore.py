@@ -35,6 +35,9 @@ ANALYSIS_FEATURES = [
     'fga', 'fta', 'fg3a', 'fg_pct', 'fg3_pct', 'ft_pct'
 ]
 
+# Estadísticas donde un valor alto es negativo
+NEGATIVE_FEATURES = ['tov']
+
 # Valores mínimos para considerar una explosión como relevante (evitar ruido)
 FEATURE_MIN_VALUES = {
     'pts': 10, 'ast': 4, 'reb': 5, 'stl': 2, 'blk': 2, 'tov': 4,
@@ -169,6 +172,7 @@ class PlayerZScoreDetector(BaseDetector):
         
         outlier_features = []
         max_z = 0.0
+        primary_sentiment = 'positive'
         
         for feat in ANALYSIS_FEATURES:
             sum_x = acc.get(feat, 0.0)
@@ -198,14 +202,20 @@ class PlayerZScoreDetector(BaseDetector):
                 is_relevant = False
             
             if abs(z) > self.z_threshold and is_relevant:
+                # Determinar si el impacto es positivo o negativo
+                is_negative_feat = feat in NEGATIVE_FEATURES
+                sentiment = 'negative' if (z > 0 if is_negative_feat else z < 0) else 'positive'
+                
                 outlier_features.append({
                     'feature': feat, 
                     'z_score': round(z, 2), 
-                    'direction': 'high' if z > 0 else 'low',
+                    'sentiment': sentiment,
                     'val': round(float(val), 3) if feat in PERCENTAGE_ATTEMPTS_MAP else int(val),
                     'avg': round(mean, 3) if feat in PERCENTAGE_ATTEMPTS_MAP else round(mean, 2)
                 })
-                if abs(z) > abs(max_z): max_z = z
+                if abs(z) > abs(max_z): 
+                    max_z = z
+                    primary_sentiment = sentiment
 
         if not outlier_features: return None
         
@@ -215,7 +225,7 @@ class PlayerZScoreDetector(BaseDetector):
             outlier_data={
                 'z_scores': z_scores,
                 'max_z_score': round(max_z, 2),
-                'outlier_type': 'explosion' if max_z > 0 else 'crisis',
+                'outlier_type': 'explosion' if primary_sentiment == 'positive' else 'crisis',
                 'outlier_features': outlier_features,
                 'games_in_sample': games_played
             }
@@ -260,6 +270,8 @@ class PlayerZScoreDetector(BaseDetector):
         acc = state.accumulated_stats
         
         max_z = 0.0
+        primary_sentiment = 'positive'
+        shooting_types = ['fg_pct', 'fg3_pct', 'ft_pct']
         
         for feat in ANALYSIS_FEATURES:
             sum_x = acc.get(feat, 0.0)
@@ -291,16 +303,24 @@ class PlayerZScoreDetector(BaseDetector):
             z = (mu_w - mu_b) / standard_error
             
             if abs(z) > self.z_threshold:
+                # Determinar si el impacto es positivo o negativo
+                is_negative_feat = feat in NEGATIVE_FEATURES
+                sentiment = 'negative' if (z > 0 if is_negative_feat else z < 0) else 'positive'
+                
                 z_dict[feat] = round(float(z), 2)
                 comp_dict[feat] = {
                     "current_avg": round(mu_w, 3) if feat in PERCENTAGE_ATTEMPTS_MAP else round(mu_w, 2),
                     "baseline_avg": round(mu_b, 3) if feat in PERCENTAGE_ATTEMPTS_MAP else round(mu_b, 2),
-                    "diff_pct": round(((mu_w/mu_b)-1)*100, 1) if mu_b > 0 else 0
+                    "diff_pct": round(((mu_w/mu_b)-1)*100, 1) if mu_b > 0 else 0,
+                    "sentiment": sentiment
                 }
-                if abs(z) > abs(max_z): max_z = z
+                if abs(z) > abs(max_z): 
+                    max_z = z
+                    primary_sentiment = sentiment
 
         if abs(max_z) > self.z_threshold:
-            self._persist_trend_outlier(session, player_id, window_type, ref_date, z_dict, max_z, comp_dict, n_w, n_b)
+            out_type = 'explosion' if primary_sentiment == 'positive' else 'crisis'
+            self._persist_trend_outlier(session, player_id, window_type, ref_date, z_dict, max_z, comp_dict, n_w, n_b, out_type)
 
     def _persist_single_outlier(self, session: Session, result: OutlierResult):
         data = result.outlier_data
@@ -314,9 +334,8 @@ class PlayerZScoreDetector(BaseDetector):
         else:
             session.add(PlayerOutlier(player_game_stat_id=result.player_game_stat_id, **data))
 
-    def _persist_trend_outlier(self, session: Session, p_id: int, w_type: str, ref_date: date, z: dict, max_z: float, comp: dict, n_w: int, n_b: int):
+    def _persist_trend_outlier(self, session: Session, p_id: int, w_type: str, ref_date: date, z: dict, max_z: float, comp: dict, n_w: int, n_b: int, out_type: str):
         existing = session.query(PlayerTrendOutlier).filter_by(player_id=p_id, window_type=w_type, reference_date=ref_date).first()
-        out_type = 'explosion' if max_z > 0 else 'crisis'
         if existing:
             existing.max_z_score = max_z
             existing.outlier_type = out_type
