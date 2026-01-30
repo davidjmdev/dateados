@@ -996,45 +996,51 @@ postgresql://[usuario]:[password]@[host]:[puerto]/[database]
 
 **Workflow:** `.github/workflows/nba_daily_ingest.yml`
 
-**Horario:** Todos los días a las **07:00 UTC** (automático)
+**Horario:** Todos los días a las **07:00 UTC** (automático).
+
+**¿Cómo funciona?**
+1. GitHub Actions realiza una petición `POST` segura al servidor de Render.
+2. La petición "despierta" el servicio si está en reposo (Render Free Tier).
+3. El servidor ejecuta la **ingesta inteligente** en segundo plano.
+4. Los datos se actualizan directamente desde el entorno de Render, evitando bloqueos de IP de la NBA API.
+
+### GitHub Actions - Reset del Sistema (Botón de Pánico)
+
+**Workflow:** `.github/workflows/nba_reset_system.yml`
+
+**Uso:** Manual (`workflow_dispatch`).
 
 **¿Qué hace?**
-1. Ejecuta `python -m ingestion.cli` (modo smart)
-2. Detecta automáticamente partidos de la noche anterior
-3. Calcula outliers y rachas
-4. Mantiene la BD actualizada incluso si Render está en reposo
+- Fuerza la parada de todos los procesos de ingesta (`pkill`).
+- Limpia el estado de la base de datos (resetea a `idle`).
+- Borra los checkpoints pendientes para permitir un inicio limpio.
 
-**Configuración necesaria:**
+### Configuración Necesaria
 
-En tu repositorio de GitHub:
-1. Ir a **Settings** > **Secrets and variables** > **Actions**
-2. Crear secret: `DATABASE_URL`
-3. Valor: External Connection String de Render (ver Dashboard > Database > Connections)
+Para que la automatización funcione, debes configurar los siguientes secretos en tu repositorio de GitHub (**Settings > Secrets and variables > Actions**):
 
-**Formato del secret:**
-```
-postgresql://user:password@host.render.com/database_name
-```
+| Secreto | Descripción | Valor Ejemplo |
+|---------|-------------|---------------|
+| `RENDER_URL` | URL base de tu aplicación en Render | `https://dateados-web.onrender.com` |
+| `CRON_API_KEY` | Clave secreta compartida con Render | `tu_clave_secreta_aqui` |
 
-**Ejecución manual:**
-- Ir a **Actions** > **NBA Daily Ingestion**
-- Click en **Run workflow**
-
-**Ver logs:**
-- Pestaña **Actions** del repositorio
-- Click en la ejecución más reciente
-
-**Ventajas:**
-- ✅ Actualización automática sin intervención
-- ✅ No depende de que el servicio web esté activo
-- ✅ Gratis (incluido en GitHub Free tier)
-- ✅ Compatible con Render Free tier (que puede entrar en reposo)
+*Nota: Asegúrate de añadir también `CRON_API_KEY` en las **Environment Variables** de tu servicio en el Dashboard de Render.*
 
 ---
 
 ## 🔧 Troubleshooting
 
 ### Problemas Comunes
+
+#### Error: "Ya hay una ingesta en curso" (Sistema bloqueado)
+
+**Causa:** Una ingesta previa falló o se interrumpió sin limpiar el estado en la base de datos.
+
+**Solución:**
+1. Ve a la pestaña **Actions** en tu repositorio de GitHub.
+2. Selecciona el workflow **"NBA System Reset"**.
+3. Haz clic en **"Run workflow"**.
+4. Una vez finalizado, puedes volver a lanzar la ingesta normal.
 
 #### Error: "Database does not exist"
 

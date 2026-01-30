@@ -1,0 +1,30 @@
+name: NBA System Reset
+
+on:
+  workflow_dispatch:
+    # Permite ejecución manual desde la pestaña Actions de GitHub para emergencias
+
+jobs:
+  reset_system:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Trigger System Reset
+        run: |
+          if [ -z "${{ secrets.RENDER_URL }}" ]; then
+            echo "Error: RENDER_URL secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.CRON_API_KEY }}" ]; then
+            echo "Error: CRON_API_KEY secret is not set"
+            exit 1
+          fi
+          
+          echo "Enviando comando de RESET al servidor Render..."
+          
+          # Hacemos la petición POST al endpoint de reset
+          curl -f -X POST "${{ secrets.RENDER_URL }}/admin/ingest/reset" \
+               -H "X-Cron-Key: ${{ secrets.CRON_API_KEY }}" \
+               -H "Content-Length: 0"
+          
+          echo "Sistema reseteado con éxito. Los procesos han sido terminados y el estado de la BD limpiado."
