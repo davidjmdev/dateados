@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Request, Depends, BackgroundTasks
+from fastapi import APIRouter, Request, Depends, BackgroundTasks, Header, HTTPException
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
+import os
 from datetime import datetime
 import logging
 import subprocess
@@ -83,7 +84,7 @@ def stop_all_ingestions():
     
     active_processes = []
 
-def run_ingestion_task():
+def run_ingestion_task(extra_args: Optional[List[str]] = None):
     """Ejecuta la ingesta inteligente llamando al CLI como subproceso.
     
     El CLI ahora usa una lógica centralizada que siempre escribe en la DB
@@ -96,6 +97,8 @@ def run_ingestion_task():
     env["PYTHONUNBUFFERED"] = "1"
     
     cmd = [python_exec, "-m", "ingestion.cli"]
+    if extra_args:
+        cmd.extend(extra_args)
     
     logger = logging.getLogger("web.admin")
     process = None
@@ -161,6 +164,41 @@ async def start_ingestion(background_tasks: BackgroundTasks, clean: bool = False
     
     background_tasks.add_task(run_ingestion_task)
     return {"status": "success", "message": "Ingesta inteligente iniciada en segundo plano."}
+
+@router.post("/ingest/cron")
+async def cron_ingestion(
+    background_tasks: BackgroundTasks, 
+    db: Session = Depends(get_db),
+    x_cron_key: Optional[str] = Header(None)
+):
+    """Endpoint para disparar la ingesta desde un cron externo (GitHub Actions)."""
+    cron_api_key = os.getenv("CRON_API_KEY")
+    
+    if not cron_api_key:
+        raise HTTPException(status_code=500, detail="CRON_API_KEY no configurada en el servidor")
+        
+    if x_cron_key != cron_api_key:
+        raise HTTPException(status_code=403, detail="Clave de cron inválida")
+
+    # Verificar si ya está corriendo
+    status = db.query(SystemStatus).filter_by(task_name="smart_ingestion").first()
+    if status and status.status == "running":
+        return {"status": "ignored", "message": "Ya hay una ingesta en curso."}
+
+    # Asegurar que tenemos un registro de estado limpio
+    if not status:
+        status = SystemStatus(task_name="smart_ingestion")
+        db.add(status)
+    
+    status.status = "running"
+    status.progress = 0
+    status.message = "Iniciando ingesta automática (Cron)..."
+    status.last_run = datetime.now()
+    db.commit()
+    
+    # Lanzamos la ingesta inteligente normal
+    background_tasks.add_task(run_ingestion_task)
+    return {"status": "success", "message": "Ingesta automática iniciada."}
 
 @router.get("/ingest/status")
 async def get_ingestion_status(db: Session = Depends(get_db)):
