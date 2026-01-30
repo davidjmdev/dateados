@@ -1,0 +1,39 @@
+name: NBA Daily Ingestion
+
+on:
+  schedule:
+    # 07:00 UTC es una buena hora para capturar todos los partidos de la noche anterior
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+    # Permite ejecución manual desde la pestaña Actions de GitHub
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run daily ingestion
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # Forzamos LOG_LEVEL INFO para ver qué está pasando en el log de GitHub
+          LOG_LEVEL: INFO
+          # No necesitamos limpiar logs antiguos en cada ingesta diaria
+          INGEST_CLEAR_LOGS: "false"
+        run: |
+          # Ejecutamos la ingesta inteligente limitada a la temporada actual (frontera)
+          # Esto detectará automáticamente los partidos de anoche y los outliers.
+          python -m ingestion.cli
