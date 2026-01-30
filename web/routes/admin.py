@@ -200,6 +200,33 @@ async def cron_ingestion(
     background_tasks.add_task(run_ingestion_task)
     return {"status": "success", "message": "Ingesta automática iniciada."}
 
+@router.post("/ingest/reset")
+async def reset_ingestion(
+    db: Session = Depends(get_db),
+    x_cron_key: Optional[str] = Header(None)
+):
+    """Endpoint para forzar la parada de ingestas y limpiar el estado."""
+    cron_api_key = os.getenv("CRON_API_KEY")
+    
+    if not cron_api_key:
+        raise HTTPException(status_code=500, detail="CRON_API_KEY no configurada en el servidor")
+        
+    if x_cron_key != cron_api_key:
+        raise HTTPException(status_code=403, detail="Clave de cron inválida")
+
+    # 1. Parar procesos
+    stop_all_ingestions()
+    
+    # 2. Limpiar base de datos (logs y estados)
+    cleanup_for_new_ingestion(db, clear_status=True)
+    
+    # 3. Limpiar checkpoints
+    CheckpointManager().clear()
+    
+    db.commit()
+    
+    return {"status": "success", "message": "Sistema de ingesta reseteado y procesos detenidos."}
+
 @router.get("/ingest/status")
 async def get_ingestion_status(db: Session = Depends(get_db)):
     status = db.query(SystemStatus).filter_by(task_name="smart_ingestion").first()
