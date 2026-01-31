@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, Depends
-from fastapi.templating import Jinja2Templates
+from web.templates import templates
 from sqlalchemy.orm import Session
 from pathlib import Path
 
@@ -7,10 +7,6 @@ from db.connection import get_session
 from db import get_database_stats, get_games
 
 router = APIRouter()
-
-# Configurar templates
-BASE_DIR = Path(__file__).resolve().parent.parent
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 # Dependencia para obtener la sesion de BD
 def get_db():

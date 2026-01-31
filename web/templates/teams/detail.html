@@ -95,8 +95,24 @@
                                     </div>
                                 </td>
                                 <td class="px-2 py-3 text-center text-zinc-500 dark:text-zinc-400 font-medium">{{ player_season.player.position or '-' }}</td>
-                                <td class="px-2 py-3 text-center font-mono text-zinc-500 dark:text-zinc-400">{{ player_season.player.height or '-' }}</td>
-                                <td class="px-2 py-3 text-center font-mono text-zinc-500 dark:text-zinc-400">{% if player_season.player.weight %}{{ player_season.player.weight }} lbs{% else %}-{% endif %}</td>
+                                <td class="px-2 py-3 text-center font-mono text-zinc-500 dark:text-zinc-400">
+                                    {% if player_season.player.height|to_cm %}
+                                        <span class="font-bold text-slate-900 dark:text-white">{{ player_season.player.height|to_cm }}</span><span class="text-[9px] opacity-50 ml-0.5">cm</span>
+                                        <span class="text-[10px] block text-zinc-400 dark:text-zinc-500">({{ player_season.player.height }})</span>
+                                    {% else %}
+                                        {{ player_season.player.height or '-' }}
+                                    {% endif %}
+                                </td>
+                                <td class="px-2 py-3 text-center font-mono text-zinc-500 dark:text-zinc-400">
+                                    {% if player_season.player.weight %}
+                                        {% if player_season.player.weight|to_kg %}
+                                            <span class="font-bold text-slate-900 dark:text-white">{{ player_season.player.weight|to_kg }}</span><span class="text-[9px] opacity-50 ml-0.5">kg</span>
+                                            <span class="text-[10px] block text-zinc-400 dark:text-zinc-500">({{ player_season.player.weight }} lbs)</span>
+                                        {% else %}
+                                            {{ player_season.player.weight }} <span class="text-[10px]">lbs</span>
+                                        {% endif %}
+                                    {% else %}-{% endif %}
+                                </td>
                                 <td class="px-2 py-3 text-center font-mono text-zinc-500 dark:text-zinc-400">
                                     {{ player_season.player.experience }} 
                                     <span class="text-[10px] uppercase text-zinc-600">yrs</span>

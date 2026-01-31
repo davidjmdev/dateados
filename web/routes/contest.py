@@ -8,14 +8,13 @@ import logging
 from typing import List, Optional
 from fastapi import APIRouter, Request, HTTPException, Query
 from fastapi.responses import JSONResponse
-from fastapi.templating import Jinja2Templates
+from web.templates import templates
 
 from db.connection import get_session
 from web.contest_logic import ContestGameLogic
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-templates = Jinja2Templates(directory="web/templates")
 logic = ContestGameLogic()
 
 @router.get("/contest")

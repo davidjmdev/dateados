@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, Depends, Query
-from fastapi.templating import Jinja2Templates
+from web.templates import templates
 from sqlalchemy.orm import Session
 from pathlib import Path
 from math import ceil
@@ -11,9 +11,6 @@ from db import get_games, get_game_details
 from db.models import Game
 
 router = APIRouter()
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 def get_db():
     db = get_session()

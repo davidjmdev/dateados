@@ -31,8 +31,22 @@
                         {{ player.position or '-' }}
                     </td>
                     <td class="px-4 md:px-6 py-4 whitespace-nowrap text-xs md:text-sm text-slate-600 dark:text-zinc-400 font-mono">
-                        <span class="font-bold text-slate-900 dark:text-white">{{ player.height or '-' }}</span>
-                        {% if player.weight %}<span class="text-zinc-400 dark:text-zinc-600 mx-0.5">/</span>{{ player.weight }}{% endif %}
+                        {% if player.height|to_cm %}
+                            <span class="font-bold text-slate-900 dark:text-white">{{ player.height|to_cm }}</span><span class="text-[9px] opacity-50 ml-0.5">cm</span>
+                            <span class="text-[10px] text-zinc-400 dark:text-zinc-500">({{ player.height }})</span>
+                        {% else %}
+                            <span class="font-bold text-slate-900 dark:text-white">{{ player.height or '-' }}</span>
+                        {% endif %}
+
+                        {% if player.weight %}
+                            <span class="text-zinc-400 dark:text-zinc-600 mx-0.5">/</span>
+                            {% if player.weight|to_kg %}
+                                <span class="font-bold text-slate-900 dark:text-white">{{ player.weight|to_kg }}</span><span class="text-[9px] opacity-50 ml-0.5">kg</span>
+                                <span class="text-[10px] text-zinc-400 dark:text-zinc-500">({{ player.weight }})</span>
+                            {% else %}
+                                <span class="font-bold text-slate-900 dark:text-white">{{ player.weight }}</span>
+                            {% endif %}
+                        {% endif %}
                     </td>
                     <td class="px-4 md:px-6 py-4 whitespace-nowrap text-xs md:text-sm text-slate-600 dark:text-zinc-400 font-mono">
                         {% if player.draft_year %}

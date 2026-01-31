@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, Depends, BackgroundTasks, Header, HTTPException
-from fastapi.templating import Jinja2Templates
+from web.templates import templates
 from sqlalchemy.orm import Session
 from pathlib import Path
 from typing import Optional, List
@@ -18,9 +18,6 @@ from db.logging import cleanup_for_new_ingestion
 from ingestion.checkpoints import CheckpointManager
 
 router = APIRouter(prefix="/admin")
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 # Lista global para rastrear procesos de ingesta activos
 active_processes = []

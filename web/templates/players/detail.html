@@ -47,11 +47,25 @@
                 <div class="mt-8 grid grid-cols-2 gap-px bg-slate-200 dark:bg-white/10 rounded-xl overflow-hidden w-full border border-slate-200 dark:border-white/5">
                     <div class="bg-white dark:bg-zinc-900/50 p-3 text-center transition-colors duration-300">
                         <p class="text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-bold tracking-wider">Altura</p>
-                        <p class="text-slate-900 dark:text-white font-mono font-bold">{{ player.height or '-' }}</p>
+                        <p class="text-slate-900 dark:text-white font-mono font-bold">
+                            {% if player.height and player.height|to_cm %}
+                                {{ player.height|to_cm }} <span class="text-[10px] opacity-50 font-sans">cm</span>
+                                <span class="text-[10px] text-zinc-400 dark:text-zinc-500 ml-1 font-normal">({{ player.height }})</span>
+                            {% else %}
+                                {{ player.height or '-' }}
+                            {% endif %}
+                        </p>
                     </div>
                     <div class="bg-white dark:bg-zinc-900/50 p-3 text-center transition-colors duration-300">
                         <p class="text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-bold tracking-wider">Peso</p>
-                        <p class="text-slate-900 dark:text-white font-mono font-bold">{% if player.weight %}{{ player.weight }} lbs{% else %}-{% endif %}</p>
+                        <p class="text-slate-900 dark:text-white font-mono font-bold">
+                            {% if player.weight and player.weight|to_kg %}
+                                {{ player.weight|to_kg }} <span class="text-[10px] opacity-50 font-sans">kg</span>
+                                <span class="text-[10px] text-zinc-400 dark:text-zinc-500 ml-1 font-normal">({{ player.weight }} lbs)</span>
+                            {% elif player.weight %}
+                                {{ player.weight }} lbs
+                            {% else %}-{% endif %}
+                        </p>
                     </div>
                     <div class="bg-white dark:bg-zinc-900/50 p-3 text-center transition-colors duration-300">
                         <p class="text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-bold tracking-wider">Draft</p>

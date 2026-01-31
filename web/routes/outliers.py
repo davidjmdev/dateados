@@ -9,7 +9,7 @@ Endpoints:
 """
 
 from fastapi import APIRouter, Request, Depends, Query, HTTPException
-from fastapi.templating import Jinja2Templates
+from web.templates import templates
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_
@@ -29,8 +29,7 @@ STAT_NAMES_MAP = {
     'fg3_pct': '3P%', 'ft_pct': 'FT%'
 }
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+router = APIRouter(prefix="/outliers", tags=["outliers"])
 
 
 def _build_league_query(db: Session, season: str, window: str):

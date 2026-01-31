@@ -5,7 +5,7 @@ y tipos de hitos estadísticos.
 """
 
 from fastapi import APIRouter, Request, Depends, Query
-from fastapi.templating import Jinja2Templates
+from web.templates import templates
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, cast, Float, or_, case
@@ -18,9 +18,6 @@ from db.connection import get_session
 from db.models import Game, Player
 from outliers.stats.streaks import StreakCriteria
 from outliers.models import StreakRecord, StreakAllTimeRecord
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 router = APIRouter(prefix="/streaks", tags=["streaks"])
 
