@@ -15,8 +15,8 @@ jobs:
             echo "Error: RENDER_URL secret is not set"
             exit 1
           fi
-          if [ -z "${{ secrets.CRON_API_KEY }}" ]; then
-            echo "Error: CRON_API_KEY secret is not set"
+          if [ -z "${{ secrets.SECURE_TOKEN }}" ]; then
+            echo "Error: SECURE_TOKEN secret is not set"
             exit 1
           fi
           
@@ -24,7 +24,7 @@ jobs:
           
           # Hacemos la petición POST al endpoint de reset
           curl -f -X POST "${{ secrets.RENDER_URL }}/admin/ingest/reset" \
-               -H "X-Cron-Key: ${{ secrets.CRON_API_KEY }}" \
+               -H "X-Secure-Token: ${{ secrets.SECURE_TOKEN }}" \
                -H "Content-Length: 0"
           
           echo "Sistema reseteado con éxito. Los procesos han sido terminados y el estado de la BD limpiado."

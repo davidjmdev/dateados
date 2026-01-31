@@ -1,0 +1,15 @@
+name: Update Awards
+
+on:
+  workflow_dispatch:
+
+jobs:
+  update-awards:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Awards Update API
+        run: |
+          echo "Disparando actualización de premios..."
+          curl -X POST "${{ secrets.API_BASE_URL }}/admin/update/awards" \
+               -H "X-Secure-Token: ${{ secrets.SECURE_TOKEN }}" \
+               -H "Content-Length: 0"

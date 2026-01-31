@@ -391,7 +391,7 @@ Worker-2021-22 → [▓▓▓░░░░░░░] 30% (250/820 partidos)
 
 | Parámetro | Tipo | Default | Descripción |
 |-----------|------|---------|-------------|
-| `--mode` | choice | `smart` | Estrategia de ingesta: `smart` (inteligente) o `full` (histórica) |
+| `--mode` | choice | `smart` | Estrategia de ingesta: `smart` (auto), `full` (histórica) o `awards` (solo premios) |
 | `--start-season` | str | `1983-84` | Temporada inicial (solo modo full) |
 | `--end-season` | str | actual | Temporada final (solo modo full) |
 | `--limit-seasons` | int | None | Límite de temporadas a analizar (solo modo smart) |
@@ -666,6 +666,8 @@ uvicorn web.app:app --host 0.0.0.0 --port 8000
 | `/admin/ingest/run` | POST | Iniciar ingesta en background |
 | `/admin/ingest/status` | GET | Estado actual de la ingesta (progress, message, status) |
 | `/admin/ingest/logs` | GET | Últimos logs de la ingesta (param: limit=50) |
+| `/admin/update/awards` | POST | Forzar actualización de premios de jugadores activos |
+| `/admin/update/outliers` | POST | Forzar recálculo completo de outliers (liga, jugador y rachas) |
 | `/outliers/api/league` | GET | Top outliers de liga en JSON (params: limit, window, season) |
 | `/outliers/api/player` | GET | Top outliers de jugador en JSON (params: limit, window, season) |
 | `/outliers/api/stats` | GET | Estadísticas del sistema en JSON |
@@ -1004,6 +1006,26 @@ postgresql://[usuario]:[password]@[host]:[puerto]/[database]
 3. El servidor ejecuta la **ingesta inteligente** en segundo plano.
 4. Los datos se actualizan directamente desde el entorno de Render, evitando bloqueos de IP de la NBA API.
 
+### GitHub Actions - Actualización de Premios
+
+**Workflow:** `.github/workflows/update_awards.yml`
+
+**Uso:** Manual (`workflow_dispatch`).
+
+**¿Qué hace?**
+- Dispara una actualización de premios y biografías de todos los jugadores activos.
+- Útil para sincronizar reconocimientos oficiales de la NBA tan pronto como se anuncian.
+
+### GitHub Actions - Actualización de Outliers
+
+**Workflow:** `.github/workflows/update_outliers.yml`
+
+**Uso:** Manual (`workflow_dispatch`).
+
+**¿Qué hace?**
+- Ejecuta el recálculo completo de outliers (liga, jugador y rachas).
+- Útil para corregir anomalías estadísticas o refrescar las tendencias tras cambios en el modelo.
+
 ### GitHub Actions - Reset del Sistema (Botón de Pánico)
 
 **Workflow:** `.github/workflows/nba_reset_system.yml`
@@ -1022,9 +1044,10 @@ Para que la automatización funcione, debes configurar los siguientes secretos e
 | Secreto | Descripción | Valor Ejemplo |
 |---------|-------------|---------------|
 | `RENDER_URL` | URL base de tu aplicación en Render | `https://dateados-web.onrender.com` |
-| `CRON_API_KEY` | Clave secreta compartida con Render | `tu_clave_secreta_aqui` |
+| `SECURE_TOKEN` | Token de seguridad para la API (Header: `X-Secure-Token`) | `tu_clave_secreta_aqui` |
 
-*Nota: Asegúrate de añadir también `CRON_API_KEY` en las **Environment Variables** de tu servicio en el Dashboard de Render.*
+*Nota: Asegúrate de añadir también `SECURE_TOKEN` en las **Environment Variables** de tu servicio en el Dashboard de Render.*
+
 
 ---
 

@@ -129,6 +129,26 @@ def run_full_ingestion_legacy(start_season: str, end_season: str, resume: bool):
         sys.exit(1)
 
 
+def run_awards_sync(active_only: bool = True):
+    """Sincroniza premios de jugadores de forma independiente."""
+    api_client = NBAApiClient()
+    reporter = ProgressReporter("awards_sync", session_factory=get_session)
+    
+    with get_session() as session:
+        try:
+            log_header("INICIANDO SINCRONIZACIÓN DE PREMIOS", "dateados.cli")
+            from ingestion.strategies import BaseIngestion
+            strategy = BaseIngestion(api_client)
+            # Sincronizar premios y bios (que es lo que hace sync_post_process)
+            strategy.sync_post_process(session, reporter, active_only_awards=active_only, prefix="manual_")
+            reporter.complete("Sincronización de premios finalizada")
+            log_success("Premios sincronizados con éxito")
+        except Exception as e:
+            logger.error(f"❌ Error en sincronización de premios: {e}", exc_info=True)
+            reporter.fail(str(e))
+            sys.exit(1)
+
+
 def main():
     """Punto de entrada principal del CLI."""
     try:
@@ -156,9 +176,9 @@ Ejemplos de uso:
         parser.add_argument(
             '--mode',
             type=str,
-            choices=['smart', 'full'],
+            choices=['smart', 'full', 'awards'],
             default='smart',
-            help='Modo de ingesta: smart (auto, default) o full (forzado histórico)'
+            help='Modo de ingesta: smart (auto, default), full (forzado histórico) o awards (solo premios)'
         )
         
         # Parámetros comunes/smart
@@ -226,6 +246,9 @@ Ejemplos de uso:
             
             start_season = normalize_season(args.start_season)
             run_full_ingestion_legacy(start_season, end_season, args.resume)
+
+        elif args.mode == 'awards':
+            run_awards_sync(active_only=True)
 
     except KeyboardInterrupt:
         pass

@@ -128,6 +128,84 @@ def run_ingestion_task(extra_args: Optional[List[str]] = None):
         reporter = ProgressReporter("smart_ingestion", session_factory=get_session)
         reporter.fail(str(e))
 
+def run_awards_update_task():
+    """Ejecuta la actualización de premios."""
+    global active_processes
+    python_exec = sys.executable
+    import os
+    env = os.environ.copy()
+    env["PYTHONUNBUFFERED"] = "1"
+    
+    logger = logging.getLogger("web.admin")
+    task_name = "awards_sync"
+    
+    cmd = [python_exec, "-m", "ingestion.cli", "--mode", "awards"]
+    logger.info(f"Iniciando actualización de premios: {' '.join(cmd)}")
+    
+    reporter = ProgressReporter(task_name, session_factory=get_session)
+    reporter.update(0, "Sincronizando premios...")
+    
+    process = None
+    try:
+        process = subprocess.Popen(cmd, env=env)
+        active_processes.append(process)
+        process.wait()
+        
+        if process in active_processes:
+            active_processes.remove(process)
+        
+        if process.returncode == 0:
+            logger.info("Actualización de premios completada con éxito.")
+            reporter.complete("Premios actualizados correctamente")
+        else:
+            logger.error(f"Actualización de premios falló con código {process.returncode}")
+            reporter.fail(f"Falló con código {process.returncode}")
+            
+    except Exception as e:
+        if process and process in active_processes:
+            active_processes.remove(process)
+        logger.error(f"Error en actualización de premios: {e}")
+        reporter.fail(str(e))
+
+def run_outliers_update_task():
+    """Ejecuta la actualización de outliers."""
+    global active_processes
+    python_exec = sys.executable
+    import os
+    env = os.environ.copy()
+    env["PYTHONUNBUFFERED"] = "1"
+    
+    logger = logging.getLogger("web.admin")
+    task_name = "outliers_backfill"
+    
+    cmd = [python_exec, "-m", "outliers.cli", "backfill"]
+    logger.info(f"Iniciando actualización de outliers: {' '.join(cmd)}")
+    
+    reporter = ProgressReporter(task_name, session_factory=get_session)
+    reporter.update(0, "Actualizando outliers...")
+    
+    process = None
+    try:
+        process = subprocess.Popen(cmd, env=env)
+        active_processes.append(process)
+        process.wait()
+        
+        if process in active_processes:
+            active_processes.remove(process)
+        
+        if process.returncode == 0:
+            logger.info("Actualización de outliers completada con éxito.")
+            reporter.complete("Outliers actualizados correctamente")
+        else:
+            logger.error(f"Actualización de outliers falló con código {process.returncode}")
+            reporter.fail(f"Falló con código {process.returncode}")
+            
+    except Exception as e:
+        if process and process in active_processes:
+            active_processes.remove(process)
+        logger.error(f"Error en actualización de outliers: {e}")
+        reporter.fail(str(e))
+
 @router.post("/ingest/run")
 async def start_ingestion(background_tasks: BackgroundTasks, clean: bool = False, db: Session = Depends(get_db)):
     # 1. Si es un reinicio, detener procesos anteriores PRIMERO (A nivel de sistema)
@@ -165,20 +243,26 @@ async def start_ingestion(background_tasks: BackgroundTasks, clean: bool = False
     background_tasks.add_task(run_ingestion_task)
     return {"status": "success", "message": "Ingesta inteligente iniciada en segundo plano."}
 
+def get_auth_token():
+    """Obtiene el token de seguridad desde las variables de entorno."""
+    return os.getenv("SECURE_TOKEN") or os.getenv("CRON_API_KEY")
+
 @router.post("/ingest/cron")
 async def cron_ingestion(
     background_tasks: BackgroundTasks, 
     db: Session = Depends(get_db),
-    x_cron_key: Optional[str] = Header(None)
+    x_secure_token: Optional[str] = Header(None, alias="X-Secure-Token"),
+    x_cron_key: Optional[str] = Header(None, alias="X-Cron-Key")
 ):
     """Endpoint para disparar la ingesta desde un cron externo (GitHub Actions)."""
-    cron_api_key = os.getenv("CRON_API_KEY")
+    secure_token = get_auth_token()
     
-    if not cron_api_key:
-        raise HTTPException(status_code=500, detail="CRON_API_KEY no configurada en el servidor")
+    if not secure_token:
+        raise HTTPException(status_code=500, detail="SECURE_TOKEN no configurada en el servidor")
         
-    if x_cron_key != cron_api_key:
-        raise HTTPException(status_code=403, detail="Clave de cron inválida")
+    provided_token = x_secure_token or x_cron_key
+    if provided_token != secure_token:
+        raise HTTPException(status_code=403, detail="Token de seguridad inválido")
 
     # Verificar si ya está corriendo
     status = db.query(SystemStatus).filter_by(task_name="smart_ingestion").first()
@@ -200,19 +284,69 @@ async def cron_ingestion(
     background_tasks.add_task(run_ingestion_task)
     return {"status": "success", "message": "Ingesta automática iniciada."}
 
+@router.post("/update/awards")
+async def update_awards(
+    background_tasks: BackgroundTasks, 
+    db: Session = Depends(get_db),
+    x_secure_token: Optional[str] = Header(None, alias="X-Secure-Token"),
+    x_cron_key: Optional[str] = Header(None, alias="X-Cron-Key")
+):
+    """Endpoint para forzar la actualización de premios."""
+    secure_token = get_auth_token()
+    
+    if not secure_token:
+        raise HTTPException(status_code=500, detail="SECURE_TOKEN no configurada en el servidor")
+        
+    provided_token = x_secure_token or x_cron_key
+    if provided_token != secure_token:
+        raise HTTPException(status_code=403, detail="Token de seguridad inválido")
+
+    background_tasks.add_task(run_awards_update_task)
+    
+    return {
+        "status": "success", 
+        "message": "Actualización forzada de premios iniciada en segundo plano."
+    }
+
+@router.post("/update/outliers")
+async def update_outliers(
+    background_tasks: BackgroundTasks, 
+    db: Session = Depends(get_db),
+    x_secure_token: Optional[str] = Header(None, alias="X-Secure-Token"),
+    x_cron_key: Optional[str] = Header(None, alias="X-Cron-Key")
+):
+    """Endpoint para forzar la actualización de outliers."""
+    secure_token = get_auth_token()
+    
+    if not secure_token:
+        raise HTTPException(status_code=500, detail="SECURE_TOKEN no configurada en el servidor")
+        
+    provided_token = x_secure_token or x_cron_key
+    if provided_token != secure_token:
+        raise HTTPException(status_code=403, detail="Token de seguridad inválido")
+
+    background_tasks.add_task(run_outliers_update_task)
+    
+    return {
+        "status": "success", 
+        "message": "Actualización forzada de outliers iniciada en segundo plano."
+    }
+
 @router.post("/ingest/reset")
 async def reset_ingestion(
     db: Session = Depends(get_db),
-    x_cron_key: Optional[str] = Header(None)
+    x_secure_token: Optional[str] = Header(None, alias="X-Secure-Token"),
+    x_cron_key: Optional[str] = Header(None, alias="X-Cron-Key")
 ):
     """Endpoint para forzar la parada de ingestas y limpiar el estado."""
-    cron_api_key = os.getenv("CRON_API_KEY")
+    secure_token = get_auth_token()
     
-    if not cron_api_key:
-        raise HTTPException(status_code=500, detail="CRON_API_KEY no configurada en el servidor")
+    if not secure_token:
+        raise HTTPException(status_code=500, detail="SECURE_TOKEN no configurada en el servidor")
         
-    if x_cron_key != cron_api_key:
-        raise HTTPException(status_code=403, detail="Clave de cron inválida")
+    provided_token = x_secure_token or x_cron_key
+    if provided_token != secure_token:
+        raise HTTPException(status_code=403, detail="Token de seguridad inválido")
 
     # 1. Parar procesos
     stop_all_ingestions()

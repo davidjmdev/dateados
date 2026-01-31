@@ -1,0 +1,15 @@
+name: Update Outliers
+
+on:
+  workflow_dispatch:
+
+jobs:
+  update-outliers:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Outliers Update API
+        run: |
+          echo "Disparando actualización de outliers..."
+          curl -X POST "${{ secrets.API_BASE_URL }}/admin/update/outliers" \
+               -H "X-Secure-Token: ${{ secrets.SECURE_TOKEN }}" \
+               -H "Content-Length: 0"
