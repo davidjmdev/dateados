@@ -54,20 +54,45 @@ class BaseIngestion:
         if reporter: reporter.update(5, "Sincronizando jugadores...")
         self.player_sync.sync_all(session)
 
-    def sync_post_process(self, session: Session, reporter: Optional[ProgressReporter] = None, 
-                        active_only_awards: bool = False, prefix: str = ""):
-        """Sincroniza premios y biografías detalladas de forma dinámica."""
+    def sync_post_process(
+        self, 
+        session: Session, 
+        reporter: Optional[ProgressReporter] = None, 
+        active_only_awards: bool = False, 
+        prefix: str = "",
+        force_full_awards: bool = False
+    ):
+        """Sincroniza premios y biografías detalladas de forma dinámica.
+        
+        Args:
+            session: Sesión de SQLAlchemy
+            reporter: Reporter de progreso
+            active_only_awards: Si True en modo batch histórico, fuerza sincronizar todos
+            prefix: Prefijo para nombres de checkpoints
+            force_full_awards: Si True, fuerza sincronización de todos los activos (ignora filtrado)
+        """
+        from ingestion.models_sync import get_players_needing_award_sync
+        
         # Obtener capacidad actual del sistema
         max_workers = get_max_workers()
 
-        # 1. Premios
-        filter_query = Player.is_active == True if active_only_awards else Player.awards_synced == False
-        player_ids = [pid for (pid,) in session.query(Player.id).filter(filter_query).all()]
+        # 1. Premios - Lógica inteligente
+        if force_full_awards:
+            # Modo legacy: todos los activos
+            player_ids = [pid for (pid,) in session.query(Player.id).filter(Player.is_active == True).all()]
+            logger.info(f"Modo full forzado: sincronizando {len(player_ids)} jugadores activos")
+        else:
+            # Modo inteligente
+            player_ids = get_players_needing_award_sync(
+                session, 
+                force_all=active_only_awards,  # Si active_only=True en batch histórico, forzar todos
+                days_threshold=15
+            )
         
         if player_ids:
             msg = f"Sincronizando premios para {len(player_ids)} jugadores"
             log_step(msg)
-            if reporter: reporter.update(80, msg)
+            if reporter: reporter.update(90, msg)  # Ahora es el paso final (90-95%)
             
             run_parallel_task(
                 awards_worker_func, 
@@ -82,7 +107,7 @@ class BaseIngestion:
         if pending_bio:
             msg = f"Sincronizando biografías para {len(pending_bio)} jugadores"
             log_step(msg)
-            if reporter: reporter.update(90, msg)
+            if reporter: reporter.update(95, msg)  # Al final de todo (95-100%)
             
             run_parallel_task(
                 player_info_worker_func,
@@ -104,7 +129,7 @@ class BaseIngestion:
 
             msg = f"Detectando outliers en {len(game_ids)} partidos"
             log_step(msg)
-            if reporter: reporter.update(95, msg)
+            if reporter: reporter.update(85, msg)  # Antes de premios (85-90%)
             
             new_stats = session.query(PlayerGameStats).filter(PlayerGameStats.game_id.in_(game_ids)).all()
             if new_stats:
@@ -214,15 +239,15 @@ class SmartIngestion(BaseIngestion):
                 if reporter: reporter.update(80, "Generando tablas derivadas...")
                 self.derived.regenerate_for_seasons(session, list(new_seasons_processed))
             
-            # 6. Post-procesamiento y Outliers
+            # 6. Detección de Outliers (ANTES de premios)
+            if new_game_ids and not skip_outliers:
+                self.run_outlier_detection(session, new_game_ids, reporter)
+            
+            # 7. Post-procesamiento: Premios y Biografías (AL FINAL)
             if new_game_ids or batch_seasons:
                 prefix = "smart_"
                 active_only = not batch_seasons
-                
                 self.sync_post_process(session, reporter, active_only_awards=active_only, prefix=prefix)
-                
-                if not skip_outliers:
-                    self.run_outlier_detection(session, new_game_ids, reporter)
             
             if reporter: reporter.complete("Ingesta finalizada")
             log_success("Ingesta inteligente completada con éxito")

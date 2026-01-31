@@ -129,8 +129,13 @@ def run_full_ingestion_legacy(start_season: str, end_season: str, resume: bool):
         sys.exit(1)
 
 
-def run_awards_sync(active_only: bool = True):
-    """Sincroniza premios de jugadores de forma independiente."""
+def run_awards_sync(active_only: bool = True, force_full: bool = False):
+    """Sincroniza premios de jugadores de forma independiente.
+    
+    Args:
+        active_only: Si True, filtra por jugadores activos
+        force_full: Si True, ignora filtrado inteligente y sincroniza todos los activos
+    """
     api_client = NBAApiClient()
     reporter = ProgressReporter("awards_sync", session_factory=get_session)
     
@@ -140,7 +145,13 @@ def run_awards_sync(active_only: bool = True):
             from ingestion.strategies import BaseIngestion
             strategy = BaseIngestion(api_client)
             # Sincronizar premios y bios (que es lo que hace sync_post_process)
-            strategy.sync_post_process(session, reporter, active_only_awards=active_only, prefix="manual_")
+            strategy.sync_post_process(
+                session, 
+                reporter, 
+                active_only_awards=active_only, 
+                prefix="manual_",
+                force_full_awards=force_full
+            )
             reporter.complete("Sincronización de premios finalizada")
             log_success("Premios sincronizados con éxito")
         except Exception as e:
@@ -193,6 +204,13 @@ Ejemplos de uso:
             '--skip-outliers',
             action='store_true',
             help='(Smart) Saltar detección de outliers al finalizar'
+        )
+        
+        # Parámetros de awards
+        parser.add_argument(
+            '--full-awards',
+            action='store_true',
+            help='(Awards) Fuerza sincronización de TODOS los jugadores activos (ignora filtrado inteligente)'
         )
 
         # Parámetros legacy full
@@ -248,7 +266,7 @@ Ejemplos de uso:
             run_full_ingestion_legacy(start_season, end_season, args.resume)
 
         elif args.mode == 'awards':
-            run_awards_sync(active_only=True)
+            run_awards_sync(active_only=True, force_full=args.full_awards)
 
     except KeyboardInterrupt:
         pass

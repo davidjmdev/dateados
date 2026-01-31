@@ -287,6 +287,75 @@ class PlayerSync:
 
 
 
+def get_players_needing_award_sync(
+    session: Session, 
+    force_all: bool = False,
+    days_threshold: int = 15
+) -> List[int]:
+    """Retorna IDs de jugadores que necesitan sincronización de premios.
+    
+    Estrategia:
+    - Temporada de premios (Abril-Junio): todos los activos
+    - Resto del año: solo activos con actividad reciente Y desactualizados
+    
+    Args:
+        session: Sesión de SQLAlchemy
+        force_all: Si True, ignora filtros y retorna todos los activos
+        days_threshold: Días desde última sincronización para considerar desactualizado
+        
+    Returns:
+        Lista de IDs de jugadores
+    """
+    from datetime import datetime, timedelta
+    
+    current_date = datetime.now()
+    current_month = current_date.month
+    
+    # Modo force: todos los activos
+    if force_all:
+        logger.info("Modo full: sincronizando todos los jugadores activos")
+        query = session.query(Player.id).filter(Player.is_active == True)
+        return [pid for (pid,) in query.all()]
+    
+    # Temporada de premios (Abril-Junio): todos los activos
+    if current_month in [4, 5, 6]:
+        logger.info("Temporada de premios detectada: sincronizando todos los activos")
+        query = session.query(Player.id).filter(Player.is_active == True)
+        return [pid for (pid,) in query.all()]
+    
+    # Resto del año: filtrado inteligente
+    threshold_date = current_date - timedelta(days=days_threshold)
+    
+    # Subquery: jugadores con partidos recientes (últimos N días)
+    recent_players_subq = (
+        session.query(PlayerGameStats.player_id)
+        .join(Game, PlayerGameStats.game_id == Game.id)
+        .filter(Game.date >= threshold_date.date())
+        .distinct()
+        .subquery()
+    )
+    
+    # Query principal: activos + (nunca sincronizados O desactualizados con actividad)
+    query = session.query(Player.id).filter(
+        and_(
+            Player.is_active == True,
+            or_(
+                # Nunca sincronizados
+                Player.last_award_sync == None,
+                # Desactualizados Y con actividad reciente
+                and_(
+                    Player.last_award_sync < threshold_date,
+                    Player.id.in_(session.query(recent_players_subq))
+                )
+            )
+        )
+    )
+    
+    player_ids = [pid for (pid,) in query.all()]
+    logger.info(f"Filtrado inteligente: {len(player_ids)} jugadores necesitan sync de premios")
+    return player_ids
+
+
 class PlayerAwardsSync:
     """Sincroniza premios de jugadores."""
     
@@ -386,9 +455,11 @@ class PlayerAwardsSync:
                 df = player_awards.get_data_frames()[0]
                 if df.empty:
                     # Marcar como sincronizado aunque esté vacío para no reintentar
+                    from datetime import datetime
                     player = session.query(Player).filter(Player.id == player_id).first()
                     if player:
                         player.awards_synced = True
+                        player.last_award_sync = datetime.now()
                     session.commit()
                     continue
                 
@@ -396,9 +467,11 @@ class PlayerAwardsSync:
                 self._process_awards(session, player_id, df)
                 
                 # Marcar como sincronizado
+                from datetime import datetime
                 player = session.query(Player).filter(Player.id == player_id).first()
                 if player:
                     player.awards_synced = True
+                    player.last_award_sync = datetime.now()
                 
                 session.commit()
                 time.sleep(API_DELAY)

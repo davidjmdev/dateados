@@ -94,6 +94,8 @@ class Player(Base):
     # Control de sincronización
     awards_synced = Column(Boolean, default=False, nullable=False, 
                           comment='True si ya se ha sincronizado el palmarés del jugador')
+    last_award_sync = Column(DateTime, nullable=True, 
+                            comment='Última vez que se sincronizaron los premios del jugador')
     bio_synced = Column(Boolean, default=False, nullable=False,
                         comment='True si ya se ha intentado sincronizar la biografía del jugador')
     
@@ -111,6 +113,7 @@ class Player(Base):
         CheckConstraint('season_exp >= 0', name='check_exp_positive'),
         Index('idx_players_name', 'full_name'),
         Index('idx_players_position', 'position'),
+        Index('idx_players_award_sync_active', 'last_award_sync', 'is_active'),
     )
     
     def __repr__(self):
