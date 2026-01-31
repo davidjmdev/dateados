@@ -11,8 +11,8 @@ jobs:
     steps:
       - name: Trigger System Reset
         run: |
-          if [ -z "${{ secrets.RENDER_URL }}" ]; then
-            echo "Error: RENDER_URL secret is not set"
+          if [ -z "${{ secrets.API_BASE_URL }}" ]; then
+            echo "Error: API_BASE_URL secret is not set"
             exit 1
           fi
           if [ -z "${{ secrets.SECURE_TOKEN }}" ]; then
@@ -23,7 +23,7 @@ jobs:
           echo "Enviando comando de RESET al servidor Render..."
           
           # Hacemos la petición POST al endpoint de reset
-          curl -f -X POST "${{ secrets.RENDER_URL }}/admin/ingest/reset" \
+          curl -f -X POST "${{ secrets.API_BASE_URL }}/admin/ingest/reset" \
                -H "X-Secure-Token: ${{ secrets.SECURE_TOKEN }}" \
                -H "Content-Length: 0"
           
