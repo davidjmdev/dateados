@@ -17,6 +17,7 @@ fastapi
 uvicorn[standard]
 jinja2
 python-multipart
+httpx
 
 # Testing
 pytest

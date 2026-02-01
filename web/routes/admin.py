@@ -10,6 +10,8 @@ import subprocess
 import sys
 import signal
 import time
+import asyncio
+import httpx
 
 from db.connection import get_session, get_engine
 from db.models import SystemStatus, Base, LogEntry
@@ -28,6 +30,52 @@ def get_db():
         yield db
     finally:
         db.close()
+
+async def keep_alive_during_task(task_name: str, max_hours: int = 2):
+    """Evita el spin-down de Render haciendo ping local cada 5 min mientras la tarea corre."""
+    # Solo actuar si estamos en la nube (Render o similar)
+    if os.getenv("RENDER") != "true" and os.getenv("CLOUD_MODE") != "true":
+        return
+
+    logger = logging.getLogger("web.admin.keepalive")
+    port = os.getenv("PORT", "8000")
+    start_time = time.time()
+    
+    logger.info(f"🔄 Anti-spin-down ACTIVO para: {task_name}")
+    
+    while True:
+        # Esperar 5 minutos entre pings
+        await asyncio.sleep(300)
+        
+        # Timeout de seguridad (por si algo falla y la tarea nunca marca como terminada)
+        if (time.time() - start_time) > (max_hours * 3600):
+            logger.warning(f"⏱️ Keep-alive timeout tras {max_hours}h. Deteniendo.")
+            break
+            
+        # Verificar estado en BD
+        session = get_session()
+        try:
+            status = session.query(SystemStatus).filter_by(task_name=task_name).first()
+            
+            # Si la tarea ya no está "running" o "pending", terminamos el keep-alive
+            if not status or status.status not in ["running", "pending"]:
+                logger.info(f"✅ Tarea '{task_name}' finalizada (status={status.status if status else 'None'}). Deteniendo keep-alive.")
+                break
+                
+            # Ping local al endpoint de status para mantener despierto el servicio
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    await client.get(f"http://localhost:{port}/admin/ingest/status")
+                logger.debug(f"💓 Keep-alive ping enviado (tarea: {task_name})")
+            except Exception as e:
+                logger.debug(f"⚠️ Fallo en ping keep-alive: {e}")
+                
+        except Exception as e:
+            logger.error(f"❌ Error en bucle keep-alive: {e}")
+        finally:
+            session.close()
+
+    logger.info(f"🛑 Anti-spin-down FINALIZADO para: {task_name}")
 
 @router.get("/ingest/logs")
 async def get_ingestion_logs(limit: int = 50, db: Session = Depends(get_db)):
@@ -238,7 +286,10 @@ async def start_ingestion(background_tasks: BackgroundTasks, clean: bool = False
     db.commit()
     
     background_tasks.add_task(run_ingestion_task)
-    return {"status": "success", "message": "Ingesta inteligente iniciada en segundo plano."}
+    # Activar keep-alive condicional
+    background_tasks.add_task(keep_alive_during_task, "smart_ingestion")
+    
+    return {"status": "success", "message": "Ingesta inteligente iniciada en segundo plano con protección anti-spin-down."}
 
 def get_auth_token():
     """Obtiene el token de seguridad desde las variables de entorno."""
@@ -246,15 +297,12 @@ def get_auth_token():
 
 @router.post("/ingest/cron")
 async def cron_ingestion(
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     x_secure_token: Optional[str] = Header(None, alias="X-Secure-Token"),
     x_cron_key: Optional[str] = Header(None, alias="X-Cron-Key")
 ):
-    """Endpoint para disparar la ingesta desde un cron externo (GitHub Actions).
-    
-    Este endpoint envía un comando al Background Worker en lugar de ejecutar
-    la tarea directamente, evitando el problema de spin-down del Web Service.
-    """
+    """Endpoint para disparar la ingesta desde un cron externo (GitHub Actions)."""
     secure_token = get_auth_token()
     
     if not secure_token:
@@ -264,42 +312,37 @@ async def cron_ingestion(
     if provided_token != secure_token:
         raise HTTPException(status_code=403, detail="Token de seguridad inválido")
 
-    # Verificar si ya hay un comando pendiente o una ingesta corriendo
-    existing_cmd = db.query(SystemStatus).filter_by(task_name="worker_command").first()
-    if existing_cmd and existing_cmd.status == "pending":
-        return {"status": "ignored", "message": "Ya hay un comando pendiente para el worker."}
-    
+    # Verificar si ya está corriendo
     status = db.query(SystemStatus).filter_by(task_name="smart_ingestion").first()
     if status and status.status == "running":
         return {"status": "ignored", "message": "Ya hay una ingesta en curso."}
 
-    # Enviar comando al worker
-    cmd = db.query(SystemStatus).filter_by(task_name="worker_command").first()
-    if not cmd:
-        cmd = SystemStatus(task_name="worker_command")
-        db.add(cmd)
+    # Asegurar que tenemos un registro de estado limpio
+    if not status:
+        status = SystemStatus(task_name="smart_ingestion")
+        db.add(status)
     
-    cmd.status = "pending"
-    cmd.message = "RUN_INGESTION"
-    cmd.progress = 0
-    cmd.last_run = datetime.now()
+    status.status = "running"
+    status.progress = 0
+    status.message = "Iniciando ingesta automática (Cron)..."
+    status.last_run = datetime.now()
     db.commit()
     
-    logger = logging.getLogger("web.admin")
-    logger.info("Comando RUN_INGESTION enviado al background worker")
+    # Lanzamos la ingesta inteligente normal
+    background_tasks.add_task(run_ingestion_task)
+    # Activar keep-alive condicional
+    background_tasks.add_task(keep_alive_during_task, "smart_ingestion")
     
-    return {"status": "success", "message": "Comando enviado al background worker. La ingesta iniciará en breve."}
+    return {"status": "success", "message": "Ingesta automática iniciada con protección anti-spin-down."}
 
 @router.post("/update/awards")
 async def update_awards(
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     x_secure_token: Optional[str] = Header(None, alias="X-Secure-Token"),
     x_cron_key: Optional[str] = Header(None, alias="X-Cron-Key")
 ):
-    """Endpoint para forzar la actualización de premios.
-    
-    Envía comando al Background Worker para ejecutar la sincronización.
-    """
+    """Endpoint para forzar la actualización de premios."""
     secure_token = get_auth_token()
     
     if not secure_token:
@@ -309,41 +352,24 @@ async def update_awards(
     if provided_token != secure_token:
         raise HTTPException(status_code=403, detail="Token de seguridad inválido")
 
-    # Verificar si ya hay un comando pendiente
-    existing_cmd = db.query(SystemStatus).filter_by(task_name="worker_command").first()
-    if existing_cmd and existing_cmd.status == "pending":
-        return {"status": "ignored", "message": "Ya hay un comando pendiente para el worker."}
-
-    # Enviar comando al worker
-    cmd = db.query(SystemStatus).filter_by(task_name="worker_command").first()
-    if not cmd:
-        cmd = SystemStatus(task_name="worker_command")
-        db.add(cmd)
-    
-    cmd.status = "pending"
-    cmd.message = "RUN_AWARDS_SYNC"
-    cmd.progress = 0
-    cmd.last_run = datetime.now()
-    db.commit()
-    
-    logger = logging.getLogger("web.admin")
-    logger.info("Comando RUN_AWARDS_SYNC enviado al background worker")
+    task_name = "awards_sync"
+    background_tasks.add_task(run_awards_update_task)
+    # Activar keep-alive condicional
+    background_tasks.add_task(keep_alive_during_task, task_name)
     
     return {
         "status": "success", 
-        "message": "Comando de actualización de premios enviado al worker."
+        "message": "Actualización forzada de premios iniciada en segundo plano con protección anti-spin-down."
     }
 
 @router.post("/update/outliers")
 async def update_outliers(
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     x_secure_token: Optional[str] = Header(None, alias="X-Secure-Token"),
     x_cron_key: Optional[str] = Header(None, alias="X-Cron-Key")
 ):
-    """Endpoint para forzar la actualización de outliers.
-    
-    Envía comando al Background Worker para ejecutar el backfill.
-    """
+    """Endpoint para forzar la actualización de outliers."""
     secure_token = get_auth_token()
     
     if not secure_token:
@@ -353,29 +379,14 @@ async def update_outliers(
     if provided_token != secure_token:
         raise HTTPException(status_code=403, detail="Token de seguridad inválido")
 
-    # Verificar si ya hay un comando pendiente
-    existing_cmd = db.query(SystemStatus).filter_by(task_name="worker_command").first()
-    if existing_cmd and existing_cmd.status == "pending":
-        return {"status": "ignored", "message": "Ya hay un comando pendiente para el worker."}
-
-    # Enviar comando al worker
-    cmd = db.query(SystemStatus).filter_by(task_name="worker_command").first()
-    if not cmd:
-        cmd = SystemStatus(task_name="worker_command")
-        db.add(cmd)
-    
-    cmd.status = "pending"
-    cmd.message = "RUN_OUTLIERS_BACKFILL"
-    cmd.progress = 0
-    cmd.last_run = datetime.now()
-    db.commit()
-    
-    logger = logging.getLogger("web.admin")
-    logger.info("Comando RUN_OUTLIERS_BACKFILL enviado al background worker")
+    task_name = "outliers_backfill"
+    background_tasks.add_task(run_outliers_update_task)
+    # Activar keep-alive condicional
+    background_tasks.add_task(keep_alive_during_task, task_name)
     
     return {
         "status": "success", 
-        "message": "Comando de actualización de outliers enviado al worker."
+        "message": "Actualización forzada de outliers iniciada en segundo plano con protección anti-spin-down."
     }
 
 @router.post("/ingest/reset")
