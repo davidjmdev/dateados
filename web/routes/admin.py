@@ -246,12 +246,15 @@ def get_auth_token():
 
 @router.post("/ingest/cron")
 async def cron_ingestion(
-    background_tasks: BackgroundTasks, 
     db: Session = Depends(get_db),
     x_secure_token: Optional[str] = Header(None, alias="X-Secure-Token"),
     x_cron_key: Optional[str] = Header(None, alias="X-Cron-Key")
 ):
-    """Endpoint para disparar la ingesta desde un cron externo (GitHub Actions)."""
+    """Endpoint para disparar la ingesta desde un cron externo (GitHub Actions).
+    
+    Este endpoint envía un comando al Background Worker en lugar de ejecutar
+    la tarea directamente, evitando el problema de spin-down del Web Service.
+    """
     secure_token = get_auth_token()
     
     if not secure_token:
@@ -261,34 +264,42 @@ async def cron_ingestion(
     if provided_token != secure_token:
         raise HTTPException(status_code=403, detail="Token de seguridad inválido")
 
-    # Verificar si ya está corriendo
+    # Verificar si ya hay un comando pendiente o una ingesta corriendo
+    existing_cmd = db.query(SystemStatus).filter_by(task_name="worker_command").first()
+    if existing_cmd and existing_cmd.status == "pending":
+        return {"status": "ignored", "message": "Ya hay un comando pendiente para el worker."}
+    
     status = db.query(SystemStatus).filter_by(task_name="smart_ingestion").first()
     if status and status.status == "running":
         return {"status": "ignored", "message": "Ya hay una ingesta en curso."}
 
-    # Asegurar que tenemos un registro de estado limpio
-    if not status:
-        status = SystemStatus(task_name="smart_ingestion")
-        db.add(status)
+    # Enviar comando al worker
+    cmd = db.query(SystemStatus).filter_by(task_name="worker_command").first()
+    if not cmd:
+        cmd = SystemStatus(task_name="worker_command")
+        db.add(cmd)
     
-    status.status = "running"
-    status.progress = 0
-    status.message = "Iniciando ingesta automática (Cron)..."
-    status.last_run = datetime.now()
+    cmd.status = "pending"
+    cmd.message = "RUN_INGESTION"
+    cmd.progress = 0
+    cmd.last_run = datetime.now()
     db.commit()
     
-    # Lanzamos la ingesta inteligente normal
-    background_tasks.add_task(run_ingestion_task)
-    return {"status": "success", "message": "Ingesta automática iniciada."}
+    logger = logging.getLogger("web.admin")
+    logger.info("Comando RUN_INGESTION enviado al background worker")
+    
+    return {"status": "success", "message": "Comando enviado al background worker. La ingesta iniciará en breve."}
 
 @router.post("/update/awards")
 async def update_awards(
-    background_tasks: BackgroundTasks, 
     db: Session = Depends(get_db),
     x_secure_token: Optional[str] = Header(None, alias="X-Secure-Token"),
     x_cron_key: Optional[str] = Header(None, alias="X-Cron-Key")
 ):
-    """Endpoint para forzar la actualización de premios."""
+    """Endpoint para forzar la actualización de premios.
+    
+    Envía comando al Background Worker para ejecutar la sincronización.
+    """
     secure_token = get_auth_token()
     
     if not secure_token:
@@ -298,21 +309,41 @@ async def update_awards(
     if provided_token != secure_token:
         raise HTTPException(status_code=403, detail="Token de seguridad inválido")
 
-    background_tasks.add_task(run_awards_update_task)
+    # Verificar si ya hay un comando pendiente
+    existing_cmd = db.query(SystemStatus).filter_by(task_name="worker_command").first()
+    if existing_cmd and existing_cmd.status == "pending":
+        return {"status": "ignored", "message": "Ya hay un comando pendiente para el worker."}
+
+    # Enviar comando al worker
+    cmd = db.query(SystemStatus).filter_by(task_name="worker_command").first()
+    if not cmd:
+        cmd = SystemStatus(task_name="worker_command")
+        db.add(cmd)
+    
+    cmd.status = "pending"
+    cmd.message = "RUN_AWARDS_SYNC"
+    cmd.progress = 0
+    cmd.last_run = datetime.now()
+    db.commit()
+    
+    logger = logging.getLogger("web.admin")
+    logger.info("Comando RUN_AWARDS_SYNC enviado al background worker")
     
     return {
         "status": "success", 
-        "message": "Actualización forzada de premios iniciada en segundo plano."
+        "message": "Comando de actualización de premios enviado al worker."
     }
 
 @router.post("/update/outliers")
 async def update_outliers(
-    background_tasks: BackgroundTasks, 
     db: Session = Depends(get_db),
     x_secure_token: Optional[str] = Header(None, alias="X-Secure-Token"),
     x_cron_key: Optional[str] = Header(None, alias="X-Cron-Key")
 ):
-    """Endpoint para forzar la actualización de outliers."""
+    """Endpoint para forzar la actualización de outliers.
+    
+    Envía comando al Background Worker para ejecutar el backfill.
+    """
     secure_token = get_auth_token()
     
     if not secure_token:
@@ -322,11 +353,29 @@ async def update_outliers(
     if provided_token != secure_token:
         raise HTTPException(status_code=403, detail="Token de seguridad inválido")
 
-    background_tasks.add_task(run_outliers_update_task)
+    # Verificar si ya hay un comando pendiente
+    existing_cmd = db.query(SystemStatus).filter_by(task_name="worker_command").first()
+    if existing_cmd and existing_cmd.status == "pending":
+        return {"status": "ignored", "message": "Ya hay un comando pendiente para el worker."}
+
+    # Enviar comando al worker
+    cmd = db.query(SystemStatus).filter_by(task_name="worker_command").first()
+    if not cmd:
+        cmd = SystemStatus(task_name="worker_command")
+        db.add(cmd)
+    
+    cmd.status = "pending"
+    cmd.message = "RUN_OUTLIERS_BACKFILL"
+    cmd.progress = 0
+    cmd.last_run = datetime.now()
+    db.commit()
+    
+    logger = logging.getLogger("web.admin")
+    logger.info("Comando RUN_OUTLIERS_BACKFILL enviado al background worker")
     
     return {
         "status": "success", 
-        "message": "Actualización forzada de outliers iniciada en segundo plano."
+        "message": "Comando de actualización de outliers enviado al worker."
     }
 
 @router.post("/ingest/reset")
