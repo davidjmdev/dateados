@@ -438,9 +438,10 @@ class PlayerAwardsSync:
         
         for i, player_id in enumerate(player_ids):
             try:
-                # Checkpoint cada 10 jugadores (más frecuente para evitar bucles en caso de error)
+                # Cada 10 jugadores: guardar checkpoint y loguear progreso
                 if i % 10 == 0 and i > 0:
                     checkpoint_mgr.save_sync_checkpoint('awards', player_id, checkpoint_context)
+                    logger.info(f"📦 [Lote Awards] Procesados {i}/{total} jugadores...")
                 
                 # NUEVO: Actualizar progreso DESPUÉS DE CADA JUGADOR (no solo cada 10)
                 if reporter:
@@ -461,6 +462,7 @@ class PlayerAwardsSync:
                         player.awards_synced = True
                         player.last_award_sync = datetime.now()
                     session.commit()
+                    time.sleep(API_DELAY) # Respetar delay incluso si está vacío
                     continue
                 
                 # Procesar premios

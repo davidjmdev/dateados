@@ -31,8 +31,14 @@ def get_db():
     finally:
         db.close()
 
-async def keep_alive_during_task(task_name: str, max_hours: int = 2):
-    """Evita el spin-down de Render haciendo ping local cada 5 min mientras la tarea corre."""
+async def keep_alive_during_task(task_name: str, max_hours: int = 0):
+    """Evita el spin-down de Render haciendo ping local cada 5 min mientras la tarea corre.
+    
+    Args:
+        task_name: Nombre de la tarea en la tabla system_status
+        max_hours: Si > 0, tiempo máximo de ejecución. Si es 0 (default), corre indefinidamente
+                  mientras la tarea esté activa en la base de datos.
+    """
     # Solo actuar si estamos en la nube (Render o similar)
     if os.getenv("RENDER") != "true" and os.getenv("CLOUD_MODE") != "true":
         return
@@ -47,8 +53,8 @@ async def keep_alive_during_task(task_name: str, max_hours: int = 2):
         # Esperar 5 minutos entre pings
         await asyncio.sleep(300)
         
-        # Timeout de seguridad (por si algo falla y la tarea nunca marca como terminada)
-        if (time.time() - start_time) > (max_hours * 3600):
+        # Timeout de seguridad (opcional, solo si max_hours > 0)
+        if max_hours > 0 and (time.time() - start_time) > (max_hours * 3600):
             logger.warning(f"⏱️ Keep-alive timeout tras {max_hours}h. Deteniendo.")
             break
             
