@@ -66,12 +66,27 @@ def run_parallel_task(
     # Si solo hay 1 worker, ejecutamos secuencialmente para evitar overhead de procesos y RAM
     if num_workers <= 1:
         logger.info(f"Ejecutando tarea {prefix} de forma secuencial (1 worker)...")
+        name = worker_name_func(1)
+        
+        # Registrar worker en system_status
         try:
-            name = worker_name_func(1)
+            from ingestion.utils import ProgressReporter
+            from db.connection import get_session
+            reporter = ProgressReporter(name, session_factory=get_session)
+            reporter.update(0, "Iniciando tarea secuencial...", status="running")
+        except Exception as e:
+            logger.debug(f"No se pudo registrar estado de tarea secuencial: {e}")
+            reporter = None
+
+        try:
             task_func(1, items, task_name=name, checkpoint_prefix=prefix)
+            if reporter:
+                reporter.complete("Tarea secuencial finalizada")
             return
         except Exception as e:
             logger.error(f"Error en tarea secuencial {prefix}: {e}")
+            if reporter:
+                reporter.fail(str(e))
             raise
 
     chunk_size = max(1, len(items) // num_workers)

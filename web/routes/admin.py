@@ -61,18 +61,22 @@ async def keep_alive_during_task(task_name: str, max_hours: int = 0):
         # Verificar estado en BD
         session = get_session()
         try:
-            status = session.query(SystemStatus).filter_by(task_name=task_name).first()
+            # Monitorizar si hay CUALQUIER tarea activa en el sistema
+            # Esto previene que el keep-alive se detenga si una subtarea (como awards) sigue viva
+            active_tasks = session.query(SystemStatus).filter(
+                SystemStatus.status.in_(["running", "pending"])
+            ).all()
             
-            # Si la tarea ya no está "running" o "pending", terminamos el keep-alive
-            if not status or status.status not in ["running", "pending"]:
-                logger.info(f"✅ Tarea '{task_name}' finalizada (status={status.status if status else 'None'}). Deteniendo keep-alive.")
+            # Si no hay NINGUNA tarea activa, terminamos el keep-alive
+            if not active_tasks:
+                logger.info(f"✅ No se detectan tareas activas en system_status. Deteniendo keep-alive.")
                 break
                 
             # Ping local al endpoint de status para mantener despierto el servicio
             try:
                 async with httpx.AsyncClient(timeout=10.0) as client:
                     await client.get(f"http://localhost:{port}/admin/ingest/status")
-                logger.debug(f"💓 Keep-alive ping enviado (tarea: {task_name})")
+                logger.debug(f"💓 Keep-alive ping enviado ({len(active_tasks)} tareas activas)")
             except Exception as e:
                 logger.debug(f"⚠️ Fallo en ping keep-alive: {e}")
                 
