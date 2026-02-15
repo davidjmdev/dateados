@@ -36,7 +36,17 @@ from db.query import (
     get_historical_teammates,
     get_player_career_stats,
     get_player_career_highs,
-    get_player_awards
+    get_player_awards,
+    # Nuevas funciones de temporadas y clasificaciones
+    get_all_seasons,
+    get_season_standings,
+    get_playoff_bracket,
+    get_nba_cup_bracket,
+    # Nuevas funciones de equipos
+    get_team_roster,
+    # Nuevas funciones de ranking y agregación
+    get_player_rankings,
+    get_award_leaders,
 )
 
 # Importar funciones de resumen
@@ -76,6 +86,13 @@ __all__ = [
     'get_player_career_stats',
     'get_player_career_highs',
     'get_player_awards',
+    'get_all_seasons',
+    'get_season_standings',
+    'get_playoff_bracket',
+    'get_nba_cup_bracket',
+    'get_team_roster',
+    'get_player_rankings',
+    'get_award_leaders',
     # Funciones de resumen
 
     'get_record_counts',

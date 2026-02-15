@@ -22,5 +22,8 @@ httpx
 # Testing
 pytest
 
+# MCP Server
+mcp
+
 # ML / Outliers Detection (Inference only for local/Render)
 joblib

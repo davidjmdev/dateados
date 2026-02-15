@@ -9,7 +9,7 @@ import math
 from pathlib import Path
 from datetime import datetime, date, timedelta
 from typing import Optional, List, Dict, Any, Union
-from sqlalchemy import func, desc, asc, and_, or_
+from sqlalchemy import func, desc, asc, and_, or_, case
 from sqlalchemy.orm import Session, joinedload
 
 # Agregar el directorio raíz al PYTHONPATH
@@ -387,38 +387,94 @@ def get_player_season_averages(player_id: int, season: str, session: Optional[Se
 
 
 def get_top_players(stat: str = 'pts', season: Optional[str] = None, limit: int = 10, session: Optional[Session] = None) -> List[Dict[str, Any]]:
-    """Obtiene los mejores jugadores por una estadística."""
+    """Obtiene los mejores jugadores por una estadística.
+    
+    Para stats de conteo (pts, reb, ast, etc.) calcula el promedio por partido.
+    Para porcentajes (fg_pct, fg3_pct, ft_pct) calcula SUM(made)/SUM(attempted)
+    con un mínimo de intentos para filtrar jugadores con pocos tiros.
+    
+    Args:
+        stat: Estadística a ordenar. Opciones:
+              Conteo: "pts", "reb", "ast", "stl", "blk", "tov", "fgm", "fg3m", "ftm"
+              Porcentaje: "fg_pct", "fg3_pct", "ft_pct"
+        season: Temporada opcional (ej: "2024-25")
+        limit: Máximo de resultados (default: 10)
+        
+    Returns:
+        Lista de dicts con id, full_name, value, games
+    """
+    # Mapeo de porcentajes a sus columnas made/attempted
+    PCT_STATS = {
+        'fg_pct': ('fgm', 'fga', 300),   # mín 300 intentos (~4 FGA/game * 75 games)
+        'fg3_pct': ('fg3m', 'fg3a', 82),  # mín 82 intentos (~1 3PA/game * 82 games)
+        'ft_pct': ('ftm', 'fta', 125),    # mín 125 intentos (~1.5 FTA/game * 82 games)
+    }
+    
     own_session = False
     if session is None:
         session = get_session()
         own_session = True
     try:
-        avg_stat = func.avg(getattr(PlayerGameStats, stat)).label('avg_stat')
         games_count = func.count(PlayerGameStats.id).label('games')
+        is_pct = stat in PCT_STATS
         
-        query = session.query(
-            Player.id, 
-            Player.full_name, 
-            avg_stat,
-            games_count
-        ).join(PlayerGameStats, Player.id == PlayerGameStats.player_id)
-        
-        if season: 
-            query = query.join(Game, PlayerGameStats.game_id == Game.id).filter(Game.season == season)
+        if is_pct:
+            made_col, att_col, min_attempts = PCT_STATS[stat]
+            total_made = func.sum(getattr(PlayerGameStats, made_col)).label('total_made')
+            total_att = func.sum(getattr(PlayerGameStats, att_col)).label('total_att')
             
-        query = query.group_by(Player.id, Player.full_name).having(games_count >= 5)
-        query = query.order_by(desc('avg_stat')).limit(limit)
-        
-        results = query.all()
-        return [
-            {
-                'id': r.id, 
-                'full_name': r.full_name, 
-                'value': float(r.avg_stat) if r.avg_stat is not None else 0.0,
-                'games': r.games
-            } 
-            for r in results
-        ]
+            query = session.query(
+                Player.id,
+                Player.full_name,
+                total_made,
+                total_att,
+                games_count,
+            ).join(PlayerGameStats, Player.id == PlayerGameStats.player_id)
+            
+            if season:
+                query = query.join(Game, PlayerGameStats.game_id == Game.id).filter(Game.season == season)
+            
+            query = query.group_by(Player.id, Player.full_name)\
+                .having(and_(games_count >= 5, total_att >= min_attempts))\
+                .order_by(desc(total_made * 1.0 / total_att))\
+                .limit(limit)
+            
+            results = query.all()
+            return [
+                {
+                    'id': r.id,
+                    'full_name': r.full_name,
+                    'value': round(float(r.total_made) / float(r.total_att), 4) if r.total_att else 0.0,
+                    'games': r.games,
+                }
+                for r in results
+            ]
+        else:
+            avg_stat = func.avg(getattr(PlayerGameStats, stat)).label('avg_stat')
+            
+            query = session.query(
+                Player.id, 
+                Player.full_name, 
+                avg_stat,
+                games_count
+            ).join(PlayerGameStats, Player.id == PlayerGameStats.player_id)
+            
+            if season: 
+                query = query.join(Game, PlayerGameStats.game_id == Game.id).filter(Game.season == season)
+                
+            query = query.group_by(Player.id, Player.full_name).having(games_count >= 5)
+            query = query.order_by(desc('avg_stat')).limit(limit)
+            
+            results = query.all()
+            return [
+                {
+                    'id': r.id, 
+                    'full_name': r.full_name, 
+                    'value': float(r.avg_stat) if r.avg_stat is not None else 0.0,
+                    'games': r.games
+                } 
+                for r in results
+            ]
     finally:
         if own_session: 
             session.close()
@@ -589,12 +645,14 @@ def search_games_by_score(min_total: Optional[int] = None, max_total: Optional[i
         session = get_session()
         own_session = True
     try:
-        query = session.query(Game).filter(Game.status == 3)
+        query = session.query(Game)\
+            .options(joinedload(Game.home_team), joinedload(Game.away_team))\
+            .filter(Game.status == 3)
         if season: 
             query = query.filter(Game.season == season)
-        if min_total: 
+        if min_total is not None: 
             query = query.filter((Game.home_score + Game.away_score) >= min_total)
-        if max_total: 
+        if max_total is not None: 
             query = query.filter((Game.home_score + Game.away_score) <= max_total)
         return query.order_by(desc(Game.home_score + Game.away_score)).limit(limit).all()
     finally:
@@ -916,4 +974,626 @@ def get_player_career_highs(player_id: int, session: Optional[Session] = None) -
         }
     finally:
         if own_session: 
+            session.close()
+
+
+# ============================================================
+# Funciones de Temporadas y Clasificaciones
+# ============================================================
+
+def get_all_seasons(session: Optional[Session] = None) -> List[str]:
+    """Obtiene todas las temporadas disponibles ordenadas de más reciente a más antigua.
+    
+    Returns:
+        Lista de strings de temporada (ej: ["2025-26", "2024-25", ...])
+    """
+    own_session = False
+    if session is None:
+        session = get_session()
+        own_session = True
+    try:
+        results = session.query(Game.season)\
+            .distinct()\
+            .order_by(desc(Game.season))\
+            .all()
+        return [r[0] for r in results]
+    finally:
+        if own_session:
+            session.close()
+
+
+def get_season_standings(season: str, session: Optional[Session] = None) -> Dict[str, List[Dict[str, Any]]]:
+    """Obtiene la clasificación completa de ambas conferencias para una temporada.
+    
+    Calcula victorias/derrotas de Regular Season usando agregaciones SQL
+    y agrupa los equipos por conferencia con ranking.
+    
+    Args:
+        season: Temporada (ej: "2023-24")
+        
+    Returns:
+        Dict con claves 'east' y 'west', cada una con lista de equipos ordenados por PCT.
+        Cada equipo: {team_id, abbreviation, full_name, conference, division, wins, losses, pct, rank}
+    """
+    own_session = False
+    if session is None:
+        session = get_session()
+        own_session = True
+    try:
+        base_filters = [Game.status == 3, Game.rs == True, Game.season == season]
+        
+        # Victorias por equipo
+        wins_stats = dict(
+            session.query(Game.winner_team_id, func.count(Game.id))
+            .filter(*base_filters)
+            .filter(Game.winner_team_id.isnot(None))
+            .group_by(Game.winner_team_id).all()
+        )
+        
+        # Derrotas por equipo
+        losses_stats = dict(
+            session.query(
+                case(
+                    (Game.winner_team_id == Game.home_team_id, Game.away_team_id),
+                    else_=Game.home_team_id
+                ).label('loser_id'),
+                func.count(Game.id)
+            )
+            .filter(*base_filters)
+            .filter(Game.winner_team_id.isnot(None))
+            .group_by('loser_id').all()
+        )
+        
+        # Obtener todos los equipos
+        teams_map = {t.id: t for t in session.query(Team).all()}
+        
+        # Construir tabla de clasificación
+        standings = []
+        for team_id, team in teams_map.items():
+            w = wins_stats.get(team_id, 0)
+            l = losses_stats.get(team_id, 0)
+            total = w + l
+            if total == 0:
+                continue  # Equipo sin partidos en esta temporada
+            pct = w / total
+            standings.append({
+                'team_id': team_id,
+                'abbreviation': team.abbreviation,
+                'full_name': team.full_name,
+                'conference': team.conference,
+                'division': team.division,
+                'wins': w,
+                'losses': l,
+                'pct': pct,
+            })
+        
+        # Separar por conferencia y ordenar por PCT
+        east = sorted([s for s in standings if s['conference'] == 'East'], key=lambda x: x['pct'], reverse=True)
+        west = sorted([s for s in standings if s['conference'] == 'West'], key=lambda x: x['pct'], reverse=True)
+        
+        # Añadir ranking
+        for i, s in enumerate(east):
+            s['rank'] = i + 1
+        for i, s in enumerate(west):
+            s['rank'] = i + 1
+        
+        return {'east': east, 'west': west}
+    finally:
+        if own_session:
+            session.close()
+
+
+def _get_bracket_data(games_list: List[Game], is_ist: bool = False) -> Dict[int, List[Dict[str, Any]]]:
+    """Función auxiliar para construir datos de bracket desde una lista de partidos.
+    
+    Agrupa partidos por serie (par de equipos), detecta la ronda y posición
+    a partir del ID del partido, y construye la estructura de bracket.
+    
+    Args:
+        games_list: Lista de objetos Game con home_team/away_team cargados
+        is_ist: True si es NBA Cup (afecta la lógica de parseo de IDs)
+        
+    Returns:
+        Dict con rondas como claves (1-4) y listas de series como valores
+    """
+    rounds_data = {1: [], 2: [], 3: [], 4: []}
+    if not games_list:
+        return rounds_data
+    
+    series_map = {}
+    for g in games_list:
+        if not g.home_team_id or not g.away_team_id:
+            continue
+        t1, t2 = sorted([g.home_team_id, g.away_team_id])
+        s_key = (t1, t2)
+        if s_key not in series_map:
+            series_map[s_key] = {
+                'team1_id': t1,
+                'team2_id': t2,
+                'team1_name': g.home_team.full_name if g.home_team_id == t1 else g.away_team.full_name,
+                'team2_name': g.away_team.full_name if g.home_team_id == t1 else g.home_team.full_name,
+                'team1_abbr': g.home_team.abbreviation if g.home_team_id == t1 else g.away_team.abbreviation,
+                'team2_abbr': g.away_team.abbreviation if g.home_team_id == t1 else g.home_team.abbreviation,
+                't1_wins': 0,
+                't2_wins': 0,
+                't1_score': 0,
+                't2_score': 0,
+                'first_date': g.date,
+                'last_date': g.date,
+                'r_hint': None,
+                'r_pos': 99,
+            }
+        
+        s = series_map[s_key]
+        if g.winner_team_id == t1:
+            s['t1_wins'] += 1
+            if is_ist:
+                s['t1_score'] = g.home_score if g.home_team_id == t1 else g.away_score
+                s['t2_score'] = g.away_score if g.home_team_id == t1 else g.home_score
+        elif g.winner_team_id == t2:
+            s['t2_wins'] += 1
+            if is_ist:
+                s['t2_score'] = g.home_score if g.home_team_id == t2 else g.away_score
+                s['t1_score'] = g.away_score if g.home_team_id == t2 else g.home_score
+        
+        if g.date < s['first_date']:
+            s['first_date'] = g.date
+        if g.date > s['last_date']:
+            s['last_date'] = g.date
+        
+        # Detección de ronda y posición basada en Game ID
+        try:
+            if len(g.id) == 10:
+                if is_ist:
+                    if g.id.startswith('006'):
+                        s['r_hint'] = 4
+                        s['r_pos'] = 0
+                    else:
+                        if g.id.endswith('1201'): s['r_pos'] = 0; s['r_hint'] = 2
+                        elif g.id.endswith('1202'): s['r_pos'] = 1; s['r_hint'] = 2
+                        elif g.id.endswith('1203'): s['r_pos'] = 2; s['r_hint'] = 2
+                        elif g.id.endswith('1204'): s['r_pos'] = 3; s['r_hint'] = 2
+                        elif g.id.endswith('1229'): s['r_pos'] = 0; s['r_hint'] = 3
+                        elif g.id.endswith('1230'): s['r_pos'] = 1; s['r_hint'] = 3
+                else:
+                    if g.id.startswith('004'):
+                        s['r_hint'] = int(g.id[7])
+                        s['r_pos'] = int(g.id[8])
+        except Exception:
+            pass
+    
+    sorted_series = sorted(series_map.values(), key=lambda x: (x['r_hint'] or 0, x['r_pos']))
+    
+    for s in sorted_series:
+        r = s['r_hint']
+        if not r:
+            continue
+        if r in rounds_data:
+            first_date = s['first_date'].isoformat() if s['first_date'] else None
+            last_date = s['last_date'].isoformat() if s['last_date'] else None
+            rounds_data[r].append({
+                'team1_id': s['team1_id'],
+                'team1_name': s['team1_name'],
+                'team1_abbr': s['team1_abbr'],
+                'team2_id': s['team2_id'],
+                'team2_name': s['team2_name'],
+                'team2_abbr': s['team2_abbr'],
+                't1_wins': s['t1_wins'],
+                't2_wins': s['t2_wins'],
+                't1_score': s['t1_score'],
+                't2_score': s['t2_score'],
+                'first_date': first_date,
+                'last_date': last_date,
+            })
+    
+    return rounds_data
+
+
+def get_playoff_bracket(season: str, session: Optional[Session] = None) -> List[Dict[str, Any]]:
+    """Obtiene el bracket de playoffs para una temporada.
+    
+    Args:
+        season: Temporada (ej: "2023-24")
+        
+    Returns:
+        Lista de rondas, cada una con nombre y lista de series.
+        Cada serie incluye equipos, resultados y fechas.
+    """
+    own_session = False
+    if session is None:
+        session = get_session()
+        own_session = True
+    try:
+        po_games = session.query(Game)\
+            .options(joinedload(Game.home_team), joinedload(Game.away_team))\
+            .filter(Game.season == season, Game.po == True, Game.status == 3)\
+            .order_by(asc(Game.date)).all()
+        
+        po_rounds = _get_bracket_data(po_games, is_ist=False)
+        
+        round_names = {
+            1: 'Primera Ronda',
+            2: 'Semis de Conferencia',
+            3: 'Finales de Conferencia',
+            4: 'Finales NBA'
+        }
+        
+        result = []
+        for r_num in sorted(po_rounds.keys()):
+            if po_rounds[r_num]:
+                result.append({
+                    'round': r_num,
+                    'name': round_names.get(r_num, f'Ronda {r_num}'),
+                    'series': po_rounds[r_num]
+                })
+        return result
+    finally:
+        if own_session:
+            session.close()
+
+
+def get_nba_cup_bracket(season: str, session: Optional[Session] = None) -> List[Dict[str, Any]]:
+    """Obtiene el bracket de la NBA Cup para una temporada.
+    
+    Args:
+        season: Temporada (ej: "2024-25")
+        
+    Returns:
+        Lista de rondas (Cuartos, Semis, Final), cada una con series.
+    """
+    own_session = False
+    if session is None:
+        session = get_session()
+        own_session = True
+    try:
+        ist_ko_games = session.query(Game)\
+            .options(joinedload(Game.home_team), joinedload(Game.away_team))\
+            .filter(Game.season == season, Game.ist == True, Game.status == 3)\
+            .filter(or_(
+                Game.rs == False,
+                Game.id.endswith('01201'), Game.id.endswith('01202'),
+                Game.id.endswith('01203'), Game.id.endswith('01204'),
+                Game.id.endswith('01229'), Game.id.endswith('01230')
+            ))\
+            .order_by(asc(Game.date)).all()
+        
+        if not ist_ko_games:
+            return []
+        
+        ist_rounds = _get_bracket_data(ist_ko_games, is_ist=True)
+        
+        round_names = {
+            2: 'Cuartos de Final',
+            3: 'Semifinales',
+            4: 'Final (NBA Cup)'
+        }
+        
+        result = []
+        for r_num in sorted(ist_rounds.keys()):
+            if ist_rounds[r_num]:
+                result.append({
+                    'round': r_num,
+                    'name': round_names.get(r_num, f'Ronda {r_num}'),
+                    'series': ist_rounds[r_num]
+                })
+        return result
+    finally:
+        if own_session:
+            session.close()
+
+
+# ============================================================
+# Funciones de Equipos
+# ============================================================
+
+def get_team_roster(
+    team_id: int,
+    season: Optional[str] = None,
+    session: Optional[Session] = None
+) -> Dict[str, Any]:
+    """Obtiene el roster de un equipo para una temporada específica.
+    
+    Deduplica jugadores que aparecen en múltiples tipos de competición
+    (Regular Season, Playoffs, NBA Cup), priorizando Regular Season.
+    
+    Args:
+        team_id: ID del equipo NBA
+        season: Temporada (ej: "2024-25"). Si no se especifica, usa la más reciente.
+        
+    Returns:
+        Dict con team_id, season y lista de jugadores del roster.
+    """
+    own_session = False
+    if session is None:
+        session = get_session()
+        own_session = True
+    try:
+        # Si no se especifica temporada, obtener la más reciente del equipo
+        if not season:
+            latest = session.query(PlayerTeamSeason.season)\
+                .filter(PlayerTeamSeason.team_id == team_id)\
+                .order_by(desc(PlayerTeamSeason.season))\
+                .first()
+            if latest:
+                season = latest[0]
+            else:
+                return {'team_id': team_id, 'season': None, 'count': 0, 'players': []}
+        
+        roster_raw = session.query(PlayerTeamSeason)\
+            .options(joinedload(PlayerTeamSeason.player))\
+            .filter(
+                PlayerTeamSeason.team_id == team_id,
+                PlayerTeamSeason.season == season
+            ).all()
+        
+        # Deduplicar: preferir 'Regular Season' o la entrada con más partidos
+        roster_dict = {}
+        for pts in roster_raw:
+            pid = pts.player_id
+            if pid not in roster_dict:
+                roster_dict[pid] = pts
+            else:
+                existing = roster_dict[pid]
+                if pts.type == 'Regular Season':
+                    roster_dict[pid] = pts
+                elif existing.type != 'Regular Season' and (pts.games_played or 0) > (existing.games_played or 0):
+                    roster_dict[pid] = pts
+        
+        players = []
+        for pts in sorted(roster_dict.values(), key=lambda x: x.player.full_name if x.player else ''):
+            if not pts.player:
+                continue
+            p = pts.player
+            n = pts.games_played or 1
+            total_mins = pts.minutes.total_seconds() / 60 if pts.minutes else 0
+            players.append({
+                'id': p.id,
+                'full_name': p.full_name,
+                'position': p.position,
+                'jersey': p.jersey,
+                'height': p.height,
+                'weight': p.weight,
+                'country': p.country,
+                'is_active': p.is_active,
+                'games_played': pts.games_played or 0,
+                'ppg': (pts.pts or 0) / n,
+                'rpg': (pts.reb or 0) / n,
+                'apg': (pts.ast or 0) / n,
+                'mpg': total_mins / n,
+            })
+        
+        return {
+            'team_id': team_id,
+            'season': season,
+            'count': len(players),
+            'players': players,
+        }
+    finally:
+        if own_session:
+            session.close()
+
+
+# ============================================================
+# Funciones de Ranking y Agregación de Jugadores
+# ============================================================
+
+def _parse_height_inches(h: str, default: int = 0) -> int:
+    """Convierte altura en formato '6-9' a total inches (81).
+    
+    Args:
+        h: Altura en formato 'feet-inches' (ej: '6-9')
+        default: Valor por defecto si el parsing falla
+        
+    Returns:
+        Altura en pulgadas totales, o default si falla
+    """
+    try:
+        parts = h.split('-')
+        return int(parts[0]) * 12 + int(parts[1])
+    except Exception:
+        return default
+
+
+def get_player_rankings(
+    criteria: str,
+    active_only: bool = True,
+    limit: int = 10,
+    session: Optional[Session] = None
+) -> List[Dict[str, Any]]:
+    """Obtiene un ranking de jugadores según un criterio específico.
+    
+    Args:
+        criteria: Criterio de ranking. Opciones:
+            - "youngest": más jóvenes (fecha nacimiento más reciente)
+            - "oldest": más veteranos (fecha nacimiento más antigua)
+            - "heaviest": más pesados
+            - "lightest": más ligeros
+            - "tallest": más altos (requiere parsing de height string)
+            - "shortest": más bajos
+            - "most_experienced": más temporadas de experiencia
+            - "highest_draft_pick": picks más altos (número más bajo)
+            - "lowest_draft_pick": picks más bajos (número más alto)
+        active_only: Si True, solo jugadores activos (default: True)
+        limit: Número de resultados (default: 10, max: 50)
+        
+    Returns:
+        Lista de dicts con id, full_name, value y detail
+    """
+    own_session = False
+    if session is None:
+        session = get_session()
+        own_session = True
+    try:
+        limit = min(limit, 50)
+        query = session.query(Player)
+        
+        if active_only:
+            query = query.filter(Player.is_active == True)
+        
+        if criteria == 'youngest':
+            query = query.filter(Player.birthdate.isnot(None))
+            query = query.order_by(desc(Player.birthdate))
+        elif criteria == 'oldest':
+            query = query.filter(Player.birthdate.isnot(None))
+            query = query.order_by(asc(Player.birthdate))
+        elif criteria == 'heaviest':
+            query = query.filter(Player.weight.isnot(None), Player.weight > 0)
+            query = query.order_by(desc(Player.weight))
+        elif criteria == 'lightest':
+            query = query.filter(Player.weight.isnot(None), Player.weight > 0)
+            query = query.order_by(asc(Player.weight))
+        elif criteria == 'most_experienced':
+            query = query.filter(Player.season_exp.isnot(None))
+            query = query.order_by(desc(Player.season_exp))
+        elif criteria == 'highest_draft_pick':
+            query = query.filter(Player.draft_number.isnot(None), Player.draft_number > 0)
+            query = query.order_by(asc(Player.draft_number), desc(Player.draft_year))
+        elif criteria == 'lowest_draft_pick':
+            query = query.filter(Player.draft_number.isnot(None), Player.draft_number > 0)
+            query = query.order_by(desc(Player.draft_number), desc(Player.draft_year))
+        elif criteria == 'tallest':
+            # height está como string "6-9", necesitamos ordenar por conversión
+            query = query.filter(Player.height.isnot(None))
+            players_all = query.all()
+            
+            players_sorted = sorted(players_all, key=lambda p: _parse_height_inches(p.height, default=0), reverse=True)[:limit]
+            return [
+                {
+                    'id': p.id,
+                    'full_name': p.full_name,
+                    'value': p.height,
+                    'detail': f"{p.position or 'N/A'} | {p.country or 'N/A'}",
+                }
+                for p in players_sorted
+            ]
+        elif criteria == 'shortest':
+            query = query.filter(Player.height.isnot(None))
+            players_all = query.all()
+            
+            players_sorted = sorted(players_all, key=lambda p: _parse_height_inches(p.height, default=999))[:limit]
+            return [
+                {
+                    'id': p.id,
+                    'full_name': p.full_name,
+                    'value': p.height,
+                    'detail': f"{p.position or 'N/A'} | {p.country or 'N/A'}",
+                }
+                for p in players_sorted
+            ]
+        else:
+            return []
+        
+        # Para criterios que no requieren parsing especial
+        players = query.limit(limit).all()
+        
+        results = []
+        for p in players:
+            if criteria in ('youngest', 'oldest'):
+                value = p.birthdate.isoformat() if p.birthdate else None
+                detail = f"{p.position or 'N/A'} | {p.country or 'N/A'}"
+            elif criteria in ('heaviest', 'lightest'):
+                value = p.weight
+                detail = f"{p.height or 'N/A'} | {p.position or 'N/A'}"
+            elif criteria == 'most_experienced':
+                value = p.season_exp
+                detail = f"Desde {p.from_year or '?'} | {p.position or 'N/A'}"
+            elif criteria in ('highest_draft_pick', 'lowest_draft_pick'):
+                value = p.draft_number
+                detail = f"Draft {p.draft_year or '?'} Ronda {p.draft_round or '?'}"
+            else:
+                value = None
+                detail = None
+            
+            results.append({
+                'id': p.id,
+                'full_name': p.full_name,
+                'value': value,
+                'detail': detail,
+            })
+        
+        return results
+    finally:
+        if own_session:
+            session.close()
+
+
+def get_award_leaders(
+    award_type: Optional[str] = None,
+    active_only: bool = False,
+    limit: int = 10,
+    session: Optional[Session] = None
+) -> List[Dict[str, Any]]:
+    """Obtiene los jugadores con más premios de un tipo específico.
+    
+    Args:
+        award_type: Tipo de premio a filtrar (ej: "MVP", "Champion", "All-Star",
+                    "All-NBA", "DPOY", "Finals MVP", "ROY", "6MOY", "MIP",
+                    "All-Defensive", "All-Rookie"). None = todos los premios.
+        active_only: Si True, solo jugadores activos (default: False)
+        limit: Número de resultados (default: 10, max: 50)
+        
+    Returns:
+        Lista de dicts con id, full_name, count, seasons
+    """
+    own_session = False
+    if session is None:
+        session = get_session()
+        own_session = True
+    try:
+        limit = min(limit, 50)
+        
+        # Contar premios por jugador
+        query = session.query(
+            Player.id,
+            Player.full_name,
+            Player.is_active,
+            func.count(PlayerAward.id).label('award_count'),
+        ).join(PlayerAward, Player.id == PlayerAward.player_id)
+        
+        if award_type:
+            query = query.filter(PlayerAward.award_type == award_type)
+        
+        if active_only:
+            query = query.filter(Player.is_active == True)
+        
+        query = query.group_by(Player.id, Player.full_name, Player.is_active)\
+            .order_by(desc('award_count'))\
+            .limit(limit)
+        
+        results_raw = query.all()
+        
+        if not results_raw:
+            return []
+        
+        # Obtener todas las temporadas de premios en una sola query (evitar N+1)
+        player_ids = [r.id for r in results_raw]
+        seasons_query = session.query(
+            PlayerAward.player_id,
+            PlayerAward.season
+        ).filter(PlayerAward.player_id.in_(player_ids))
+        if award_type:
+            seasons_query = seasons_query.filter(PlayerAward.award_type == award_type)
+        seasons_query = seasons_query.distinct()
+        
+        # Agrupar temporadas por jugador
+        player_seasons = {}
+        for pid, season in seasons_query.all():
+            player_seasons.setdefault(pid, []).append(season)
+        
+        # Construir resultados
+        results = []
+        for r in results_raw:
+            seasons = sorted(player_seasons.get(r.id, []), reverse=True)
+            
+            results.append({
+                'id': r.id,
+                'full_name': r.full_name,
+                'is_active': r.is_active,
+                'count': r.award_count,
+                'seasons': seasons,
+            })
+        
+        return results
+    finally:
+        if own_session:
             session.close()
