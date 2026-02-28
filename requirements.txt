@@ -1,5 +1,5 @@
 # Base de datos
-psycopg2-binary
+psycopg[binary]
 SQLAlchemy
 
 # Configuracion

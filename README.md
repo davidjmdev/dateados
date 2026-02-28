@@ -4,7 +4,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.109+-green.svg)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-blue.svg)
 ![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-red.svg)
-![Tests](https://img.shields.io/badge/tests-100%2B-brightgreen.svg)
+![Tests](https://img.shields.io/badge/tests-215-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
 Sistema integral de alto rendimiento para la ingesta, procesamiento, análisis y visualización de datos de la NBA. Construye una base de datos histórica exhaustiva desde la temporada 1983-84 hasta la actualidad, con capacidades avanzadas de detección de anomalías mediante machine learning, análisis de rachas de rendimiento y dashboard web interactivo.
@@ -16,16 +16,17 @@ Sistema integral de alto rendimiento para la ingesta, procesamiento, análisis y
 1. [Características Principales](#-características-principales)
 2. [Quick Start](#-quick-start)
 3. [Arquitectura](#-arquitectura)
-4. [Guía de Uso](#-guía-de-uso)
+4. [Model Context Protocol (MCP) Server](#-model-context-protocol-mcp-server)
+5. [Guía de Uso](#-guía-de-uso)
    - [Ingesta de Datos](#1️⃣-ingesta-de-datos)
    - [Sistema de Outliers](#2️⃣-sistema-de-outliers)
    - [Interfaz Web](#3️⃣-interfaz-web)
    - [Utilidades](#4️⃣-utilidades)
-5. [Testing](#-testing)
-6. [Despliegue](#-despliegue)
-7. [Automatización](#-automatización)
-8. [Troubleshooting](#-troubleshooting)
-9. [Estadísticas del Proyecto](#-estadísticas-del-proyecto)
+6. [Testing](#-testing)
+7. [Despliegue](#-despliegue)
+8. [Automatización](#-automatización)
+9. [Troubleshooting](#-troubleshooting)
+10. [Estadísticas del Proyecto](#-estadísticas-del-proyecto)
 
 ---
 
@@ -180,7 +181,7 @@ python -m db.utils.check_db_status
 | **Machine Learning** | PyTorch (con soporte ROCm 7.1 para AMD GPU) |
 | **API Externa** | nba_api |
 | **Contenedores** | Docker, Docker Compose |
-| **Testing** | pytest (100+ tests) |
+| **Testing** | pytest (215 tests) |
 | **CI/CD** | GitHub Actions |
 
 ### Organización de Módulos
@@ -188,7 +189,7 @@ python -m db.utils.check_db_status
 ```
 Dateados/
 ├── db/                          # Capa de Base de Datos
-│   ├── models.py                # 15 modelos SQLAlchemy (ORM)
+│   ├── models.py                # 16 modelos SQLAlchemy (ORM)
 │   ├── connection.py            # Pool de conexiones y sesiones
 │   ├── query.py                 # Consultas optimizadas de alto nivel
 │   ├── services.py              # Servicios (get_or_create patterns)
@@ -216,7 +217,7 @@ Dateados/
 │   ├── cli.py                   # CLI (train, backfill, top, stats)
 │   ├── runner.py                # OutlierRunner (orquestador)
 │   ├── base.py                  # BaseDetector, OutlierResult
-│   ├── models.py                # Modelos de outliers (5 tablas)
+│   ├── models.py                # Modelos de outliers (6 tablas)
 │   ├── stats/                   # Detectores estadísticos
 │   │   ├── player_zscore.py     # Z-Score detector
 │   │   └── streaks.py           # Streak detector (9 tipos)
@@ -241,7 +242,7 @@ Dateados/
     │   ├── contest.py           # Juego "Alto el Lápiz"
     │   └── admin.py             # Panel de administración
     └── templates/               # Vistas Jinja2
-        └── ... (19 templates organizados por módulo)
+        └── ... (21 templates organizados por módulo)
 ```
 
 ### Flujo de Datos
@@ -262,7 +263,7 @@ graph TD
 
 ### Arquitectura de Base de Datos
 
-El sistema utiliza **15 tablas** organizadas en **3 capas lógicas**:
+El sistema utiliza **16 tablas** organizadas en **3 capas lógicas**:
 
 **Capa 1: Datos Core** (7 tablas)
 - `teams`: Equipos con información organizativa
@@ -273,10 +274,11 @@ El sistema utiliza **15 tablas** organizadas en **3 capas lógicas**:
 - `team_game_stats`: Agregados por equipo/partido
 - `player_awards`: Premios y reconocimientos
 
-**Capa 2: Sistema de Outliers** (5 tablas)
+**Capa 2: Sistema de Outliers** (6 tablas)
 - `outliers_league`: Anomalías detectadas por autoencoder
 - `outliers_player`: Explosiones/crisis detectadas por Z-Score
 - `outliers_player_trends`: Cambios sostenidos de rendimiento
+- `outliers_player_season_state`: Estado acumulativo para cálculo O(1) de Z-Score
 - `outliers_streaks`: Registro de rachas de rendimiento
 - `outliers_streak_all_time_records`: Caché de récords absolutos
 
@@ -286,6 +288,29 @@ El sistema utiliza **15 tablas** organizadas en **3 capas lógicas**:
 - `log_entries`: Logs persistentes
 
 📖 **Ver [SCHEMA.md](SCHEMA.md) para arquitectura detallada de cada tabla**
+
+---
+
+## 🤖 Model Context Protocol (MCP) Server
+
+El proyecto incluye un servidor MCP (**Model Context Protocol**) nativo que permite a agentes de inteligencia artificial (como Claude, Cursor, o agentes custom) conectarse e interactuar directamente con la base de datos de estadísticas de la NBA.
+
+**Iniciar el servidor:**
+```bash
+python -m mcp_server
+```
+
+**Características principales:**
+- **Soporte de transporte dual:** Funciona a través de `stdio` (para integraciones locales) o `sse` (Server-Sent Events para integraciones web/remotas).
+- **24 herramientas de solo lectura (read-only):** Expuestas de forma segura para explorar la base de datos sin riesgo de modificación.
+- **5 Categorías de herramientas:**
+  1. **Jugadores (Players):** Búsqueda de jugadores, biografías, stats de carrera y compañeros históricos.
+  2. **Equipos (Teams):** Rosters, historial de franquicias, y récords.
+  3. **Partidos (Games):** Box scores detallados, resultados recientes y filtrado avanzado.
+  4. **Temporadas (Seasons):** Standings, brackets de playoffs e in-season tournament.
+  5. **Anomalías (Outliers):** Acceso al sistema de machine learning para detectar actuaciones históricas o rachas activas.
+
+Este servidor convierte al sistema Dateados en una herramienta poderosa para flujos de trabajo autónomos y análisis asistido por IA.
 
 ---
 
@@ -666,13 +691,15 @@ uvicorn web.app:app --host 0.0.0.0 --port 8000
 | `/admin/ingest/run` | POST | Iniciar ingesta en background |
 | `/admin/ingest/status` | GET | Estado actual de la ingesta (progress, message, status) |
 | `/admin/ingest/logs` | GET | Últimos logs de la ingesta (param: limit=50) |
+| `/admin/ingest/cron` | POST | Disparador automatizado de ingesta diaria |
+| `/admin/ingest/reset` | POST | Fuerza el reinicio del estado del sistema y procesos atascados |
 | `/admin/update/awards` | POST | Forzar actualización de premios de jugadores activos |
-| `/admin/update/outliers` | POST | Forzar recálculo completo de outliers (liga, jugador y rachas) |
+| `/admin/update/outliers` | POST | Forzar recálculo completo de outliers |
 | `/outliers/api/league` | GET | Top outliers de liga en JSON (params: limit, window, season) |
 | `/outliers/api/player` | GET | Top outliers de jugador en JSON (params: limit, window, season) |
 | `/outliers/api/stats` | GET | Estadísticas del sistema en JSON |
 
-**Total:** 8 endpoints de API
+**Total:** 12 endpoints de API
 
 #### Características Destacadas
 
@@ -864,7 +891,7 @@ python -m db.utils.repair_bios
 
 ## 🧪 Testing
 
-**Framework:** pytest con 100+ tests automatizados
+**Framework:** pytest con 215 tests automatizados
 
 ### Ejecutar Tests
 
@@ -893,11 +920,11 @@ python -m pytest tests/ --cov=outliers --cov=ingestion --cov=db -v
 | Archivo | Tests | Áreas Cubiertas |
 |---------|-------|-----------------|
 | `test_outliers.py` | 56+ | StandardScaler, Z-Score, Streaks, Autoencoder, OutlierRunner, Temporal Weighting |
-| `test_models.py` | 15+ | 15 modelos SQLAlchemy, relaciones, constraints, propiedades calculadas |
+| `test_models.py` | 15+ | 16 modelos SQLAlchemy, relaciones, constraints, propiedades calculadas |
 | `test_utils.py` | 20+ | safe_int/float, parse_date, convert_minutes, normalize_season, get_or_create |
 | `test_ingest.py` | 10+ | Parseo de game IDs, deducción de temporada, validación de API |
 
-**Total:** 100+ tests con ~80% de cobertura en módulos core
+**Total:** 215 tests con ~80% de cobertura en módulos core
 
 ### Fixtures Disponibles
 
@@ -951,18 +978,14 @@ docker-compose down -v
 
 **Servicios definidos en `render.yaml`:**
 
-1. **Base de datos PostgreSQL** (Free tier)
-   - Nombre: `nba_stats`
-   - Plan: Free
-   - Versión: PostgreSQL 14+
+El archivo `render.yaml` define únicamente la **Aplicación web FastAPI** corriendo bajo Python 3.10.12. (La base de datos PostgreSQL debe provisionarse de forma separada o utilizando una conexión externa inyectada vía entorno).
 
-2. **Aplicación web FastAPI** (Free tier)
-   - Nombre: `dateados-web`
-   - Runtime: Python 3.10.12
-   - Build: `pip install -r requirements.txt`
-   - Pre-deploy: `python -m ingestion.cli --init-db`
-   - Start: `uvicorn web.app:app --host 0.0.0.0 --port $PORT`
-   - Health check: `/`
+- **Nombre:** `dateados-web`
+- **Runtime:** Python 3.10.12
+- **Build:** `pip install -r requirements.txt`
+- **Pre-deploy:** `python -m ingestion.cli --init-db`
+- **Start:** `uvicorn web.app:app --host 0.0.0.0 --port $PORT`
+- **Health check:** `/`
 
 **Variables de entorno automáticas:**
 - `DATABASE_URL`: URL de conexión PostgreSQL (inyectada por Render)
@@ -1043,11 +1066,10 @@ Para que la automatización funcione, debes configurar los siguientes secretos e
 
 | Secreto | Descripción | Valor Ejemplo |
 |---------|-------------|---------------|
-| `RENDER_URL` | URL base de tu aplicación en Render | `https://dateados-web.onrender.com` |
+| `API_BASE_URL` | URL base de tu aplicación en Render (NO RENDER_URL) | `https://dateados-web.onrender.com` |
 | `SECURE_TOKEN` | Token de seguridad para la API (Header: `X-Secure-Token`) | `tu_clave_secreta_aqui` |
 
-*Nota: Asegúrate de añadir también `SECURE_TOKEN` en las **Environment Variables** de tu servicio en el Dashboard de Render.*
-
+*Nota: Asegúrate de añadir también `SECURE_TOKEN` en las **Environment Variables** de tu servicio en el Dashboard de Render. El secreto de URL debe llamarse `API_BASE_URL` (NO RENDER_URL).*
 
 ---
 
@@ -1203,14 +1225,14 @@ python -m ingestion.cli --limit-seasons 1
 
 ### Código
 
-- **Archivos Python:** ~50
-- **Líneas de código:** ~8,700
-- **Tests automatizados:** 100+
+- **Archivos Python:** 74
+- **Líneas de código:** ~17,200
+- **Tests automatizados:** 215
 - **Cobertura de tests:** ~80% en módulos core
 
 ### Base de Datos
 
-- **Tablas:** 15
+- **Tablas:** 16
 - **Índices:** 25+ (optimización de consultas)
 - **Constraints:** 20+ (validación de integridad)
 - **Relaciones:** 12 foreign keys
@@ -1224,4 +1246,4 @@ python -m ingestion.cli --limit-seasons 1
 
 ---
 
-*Última actualización: Enero 2025*
+*Última actualización: Febrero 2026*

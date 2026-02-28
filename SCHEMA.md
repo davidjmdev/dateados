@@ -1,6 +1,6 @@
 # SCHEMA.md - Arquitectura de Base de Datos
 
-Documentación detallada de las **15 tablas** del sistema Dateados, organizadas en **3 capas lógicas**.
+Documentación detallada de las **16 tablas** del sistema Dateados, organizadas en **3 capas lógicas**.
 
 ---
 
@@ -9,10 +9,10 @@ Documentación detallada de las **15 tablas** del sistema Dateados, organizadas 
 | Capa | Tablas | Propósito |
 |------|--------|-----------|
 | **Core** | 7 | Datos principales de NBA (equipos, jugadores, partidos, estadísticas) |
-| **Outliers** | 5 | Sistema de detección de anomalías y rachas |
+| **Outliers** | 6 | Sistema de detección de anomalías y rachas |
 | **Sistema** | 3 | Checkpoints, estado de tareas y logging |
 
-**Total:** 15 tablas, 25+ índices, 20+ constraints
+**Total:** 16 tablas, 25+ índices, 20+ constraints
 
 ---
 
@@ -117,6 +117,7 @@ erDiagram
 - `outliers_player`: Outliers individuales (→ `outliers_player.player_id`)
 - `outliers_trends`: Tendencias de rendimiento (→ `outliers_player_trends.player_id`)
 - `streaks`: Rachas de rendimiento (→ `outliers_streaks.player_id`)
+- `season_state`: Estado acumulado de la temporada (→ `outliers_player_season_state.player_id`)
 
 ---
 
@@ -205,7 +206,7 @@ Con overtimes:
 | `fg_pct` | Float | CHECK 0-1 | Porcentaje de tiros de campo |
 | `fg3m` | Integer | CHECK >= 0 | Triples anotados |
 | `fg3a` | Integer | CHECK >= 0 | Triples intentados |
-| `fg3_pct` | Float | CHECK 0-1 | Porcentaje de triples |
+| `fg3_pct` | Float | CHECK 0-1 | Porcentaje de tiros libres |
 | `ftm` | Integer | CHECK >= 0 | Tiros libres anotados |
 | `fta` | Integer | CHECK >= 0 | Tiros libres intentados |
 | `ft_pct` | Float | CHECK 0-1 | Porcentaje de tiros libres |
@@ -349,9 +350,8 @@ Con overtimes:
 | `season` | String(10) | NOT NULL | Temporada (ej: "2023-24") |
 | `award_type` | String(50) | NOT NULL | Tipo de premio (ver lista abajo) |
 | `award_name` | String(100) | - | Nombre completo del premio |
-| `description` | String(200) | - | Descripción adicional |
+| `description` | String(255) | - | Descripción adicional |
 | `created_at` | DateTime | NOT NULL | Fecha de creación |
-| `updated_at` | DateTime | NOT NULL | Fecha de actualización |
 
 **Constraints:**
 - `UNIQUE(player_id, season, award_type, award_name, description)`: No duplicados
@@ -380,7 +380,7 @@ Con overtimes:
 
 ---
 
-## 🔍 Capa 2: Sistema de Outliers (5 tablas)
+## 🔍 Capa 2: Sistema de Outliers (6 tablas)
 
 ### `outliers_league`
 
@@ -397,15 +397,15 @@ Con overtimes:
 | `reconstruction_error` | Float | NOT NULL | Error de reconstrucción del autoencoder |
 | `percentile` | Float | CHECK 0-100 | Percentil del error (0-100) |
 | `feature_contributions` | JSON | - | Contribuciones por feature (ver estructura) |
-| `detection_date` | DateTime | NOT NULL | Fecha de detección |
-| `time_window` | String(20) | - | Ventana: "last_game", "week", "month", "season" |
+| `is_outlier` | Boolean | NOT NULL | True si es outlier confirmado |
+| `model_version` | String(50) | - | Versión del modelo |
 | `created_at` | DateTime | NOT NULL | Fecha de creación |
+| `updated_at` | DateTime | NOT NULL | Fecha de actualización |
 
 **Índices:**
 - `idx_outliers_league_stat` en `player_game_stat_id`
 - `idx_outliers_league_percentile` en `percentile` DESC
-- `idx_outliers_league_window` en `time_window`
-- `idx_outliers_league_detection_date` en `detection_date`
+- `idx_outliers_league_is_outlier` en `is_outlier`
 
 **Estructura JSON de `feature_contributions`:**
 ```json
@@ -440,14 +440,15 @@ Con overtimes:
 | `player_game_stat_id` | Integer | FK → player_game_stats.id, NOT NULL | Estadística asociada |
 | `outlier_type` | String(20) | NOT NULL | Tipo: "explosion" o "crisis" |
 | `z_scores` | JSON | NOT NULL | Z-scores por feature (ver estructura) |
-| `detection_date` | DateTime | NOT NULL | Fecha de detección |
-| `time_window` | String(20) | - | Ventana temporal |
+| `max_z_score` | Float | NOT NULL | Z-score máximo detectado |
+| `outlier_features` | JSON | NOT NULL | Lista de features anómalas |
+| `games_in_sample` | Integer | NOT NULL | Partidos usados como muestra |
 | `created_at` | DateTime | NOT NULL | Fecha de creación |
+| `updated_at` | DateTime | NOT NULL | Fecha de actualización |
 
 **Índices:**
 - `idx_outliers_player_stat` en `player_game_stat_id`
 - `idx_outliers_player_type` en `outlier_type`
-- `idx_outliers_player_window` en `time_window`
 
 **Estructura JSON de `z_scores`:**
 ```json
@@ -480,7 +481,7 @@ Con overtimes:
 
 **Modelo:** `PlayerTrendOutlier`
 
-**Descripción:** Cambios sostenidos de rendimiento en ventanas temporales (7 o 30 días).
+**Descripción:** Cambios sostenidos de rendimiento en ventanas temporales.
 
 **Campos:**
 
@@ -488,19 +489,21 @@ Con overtimes:
 |-------|------|-------------|-------------|
 | `id` | Integer | PRIMARY KEY | ID único |
 | `player_id` | Integer | FK → players.id, NOT NULL | ID del jugador |
-| `season` | String(10) | NOT NULL | Temporada |
 | `outlier_type` | String(20) | NOT NULL | Tipo: "improvement" o "decline" |
-| `window_days` | Integer | NOT NULL | Ventana: 7 (semana) o 30 (mes) |
+| `window_type` | String(20) | NOT NULL | Tipo de ventana (ej. 'L10', 'L5') |
+| `reference_date` | Date | NOT NULL | Fecha de referencia |
 | `baseline_avg` | JSON | NOT NULL | Promedios históricos (antes de la ventana) |
 | `current_avg` | JSON | NOT NULL | Promedios en la ventana actual |
 | `z_scores` | JSON | NOT NULL | Z-scores de la diferencia |
+| `comparison_data` | JSON | - | Datos de comparación |
+| `games_in_window` | Integer | NOT NULL | Partidos en la ventana actual |
+| `games_in_baseline` | Integer | NOT NULL | Partidos en el periodo base |
 | `detection_date` | DateTime | NOT NULL | Fecha de detección |
 | `created_at` | DateTime | NOT NULL | Fecha de creación |
 
 **Índices:**
 - `idx_outliers_player_trends_player` en `player_id`
-- `idx_outliers_player_trends_season` en `season`
-- `idx_outliers_player_trends_window` en `window_days`
+- `idx_outliers_player_trends_reference_date` en `reference_date`
 
 **Estructura JSON de `baseline_avg` y `current_avg`:**
 ```json
@@ -533,29 +536,24 @@ Con overtimes:
 | `player_id` | Integer | FK → players.id, NOT NULL | ID del jugador |
 | `streak_type` | String(30) | NOT NULL | Tipo de racha (ver lista) |
 | `competition_type` | String(20) | NOT NULL | "RS", "PO", "PI", "IST" |
-| `current_count` | Integer | CHECK >= 0 | Cuenta actual de la racha |
+| `length` | Integer | CHECK >= 0 | Longitud de la racha |
 | `is_active` | Boolean | DEFAULT True | True si la racha sigue activa |
-| `start_game_id` | String(20) | FK → games.id | Primer partido de la racha |
+| `first_game_id` | String(20) | FK → games.id | Primer partido de la racha |
 | `last_game_id` | String(20) | FK → games.id | Último partido de la racha |
-| `broken_game_id` | String(20) | FK → games.id | Partido donde se rompió |
-| `start_date` | Date | - | Fecha de inicio |
-| `last_date` | Date | - | Fecha del último partido |
-| `broken_date` | Date | - | Fecha de ruptura |
-| `is_notable` | Boolean | DEFAULT False | True si ≥5% del récord absoluto |
-| `is_historical` | Boolean | DEFAULT False | True si ≥70% del récord (badge histórico) |
+| `started_at` | Date | - | Fecha de inicio |
+| `ended_at` | Date | - | Fecha de fin / último partido |
+| `is_historical_outlier` | Boolean | DEFAULT False | True si es un outlier histórico |
 | `created_at` | DateTime | NOT NULL | Fecha de creación |
 | `updated_at` | DateTime | NOT NULL | Fecha de actualización |
 
 **Constraints:**
-- `UNIQUE(player_id, streak_type, competition_type, start_game_id)`: No duplicados
+- `UNIQUE(player_id, streak_type, competition_type, first_game_id)`: No duplicados
 
 **Índices:**
 - `idx_outliers_streaks_player` en `player_id`
 - `idx_outliers_streaks_type` en `streak_type`
 - `idx_outliers_streaks_competition` en `competition_type`
 - `idx_outliers_streaks_active` en `is_active`
-- `idx_outliers_streaks_notable` en `is_notable`
-- `idx_outliers_streaks_historical` en `is_historical`
 
 **Tipos de rachas (`streak_type`):**
 - `pts_20`: 20+ puntos
@@ -574,16 +572,10 @@ Con overtimes:
 - `PI`: Play-In
 - `IST`: NBA Cup (In-Season Tournament)
 
-**Estados:**
-- `is_active = True`: Racha en curso
-- `is_notable = True`: ≥5% del récord absoluto (se muestra en UI)
-- `is_historical = True`: ≥70% del récord (badge histórico)
-
 **Relaciones:**
 - `player`: Jugador asociado (→ `players.id`)
-- `start_game`: Primer partido (→ `games.id`)
+- `first_game`: Primer partido (→ `games.id`)
 - `last_game`: Último partido (→ `games.id`)
-- `broken_game`: Partido de ruptura (→ `games.id`)
 
 ---
 
@@ -597,25 +589,52 @@ Con overtimes:
 
 | Campo | Tipo | Constraints | Descripción |
 |-------|------|-------------|-------------|
-| `id` | Integer | PRIMARY KEY | ID único |
-| `streak_type` | String(30) | NOT NULL | Tipo de racha |
-| `competition_type` | String(20) | NOT NULL | Tipo de competición |
-| `record_count` | Integer | NOT NULL | Cuenta del récord absoluto |
+| `streak_type` | String(30) | PRIMARY KEY | Tipo de racha |
+| `competition_type` | String(20) | PRIMARY KEY | Tipo de competición |
 | `player_id` | Integer | FK → players.id | Jugador con el récord |
-| `start_date` | Date | - | Fecha de inicio del récord |
-| `end_date` | Date | - | Fecha de fin del récord |
+| `length` | Integer | NOT NULL | Longitud del récord absoluto |
+| `started_at` | Date | - | Fecha de inicio del récord |
+| `ended_at` | Date | - | Fecha de fin del récord |
+| `game_id_start` | String(20) | FK → games.id | Primer partido del récord |
+| `game_id_end` | String(20) | FK → games.id | Último partido del récord |
 | `last_updated` | DateTime | NOT NULL | Última actualización del caché |
-
-**Constraints:**
-- `UNIQUE(streak_type, competition_type)`: Un récord por tipo/competición
 
 **Propósito:**
 - Evitar escanear toda la tabla `outliers_streaks` en cada detección
-- Comparación O(1) para determinar notabilidad e historialidad
+- Comparación O(1) para determinar historialidad
 - Se actualiza automáticamente cuando se rompe un récord
 
 **Relaciones:**
 - `player`: Jugador con el récord (→ `players.id`)
+- `game_start`: Primer partido del récord (→ `games.id`)
+- `game_end`: Último partido del récord (→ `games.id`)
+
+---
+
+### `outliers_player_season_state`
+
+**Modelo:** `PlayerSeasonState`
+
+**Descripción:** Tabla de estado para el cálculo O(1) de estadísticas acumuladas para z-scores.
+
+**Campos:**
+
+| Campo | Tipo | Constraints | Descripción |
+|-------|------|-------------|-------------|
+| `player_id` | Integer | PRIMARY KEY, FK → players.id | ID del jugador |
+| `season` | String(10) | PRIMARY KEY | Temporada (ej: "2023-24") |
+| `games_played` | Integer | NOT NULL | Partidos jugados |
+| `first_game_date` | Date | - | Fecha del primer partido |
+| `last_game_date` | Date | - | Fecha del último partido |
+| `accumulated_stats` | JSON | NOT NULL | Estadísticas acumuladas |
+| `updated_at` | DateTime | NOT NULL | Fecha de actualización |
+
+**Índices:**
+- `idx_outliers_player_season_state_player` en `player_id`
+- `idx_outliers_player_season_state_season` en `season`
+
+**Relaciones:**
+- `player`: Jugador asociado (→ `players.id`)
 
 ---
 
@@ -779,7 +798,7 @@ Con overtimes:
 
 ## 📐 Diagrama ASCII de Relaciones
 
-```
+```text
 ┌──────────────────────────────────────────────────────────────┐
 │                        DATOS CORE                            │
 ├──────────────────────────────────────────────────────────────┤
@@ -804,6 +823,9 @@ Con overtimes:
 │    ├──> outliers_league                                     │
 │    └──> outliers_player                                     │
 │                                                              │
+│  player_awards (Premios)                                     │
+│    └──> player                                              │
+│                                                              │
 ├──────────────────────────────────────────────────────────────┤
 │                    SISTEMA DE OUTLIERS                       │
 ├──────────────────────────────────────────────────────────────┤
@@ -819,10 +841,13 @@ Con overtimes:
 │                                                              │
 │  outliers_streaks (Rachas)                                   │
 │    ├──> player                                              │
-│    └──> games (start, last, broken)                         │
+│    └──> games (first, last)                                 │
 │                                                              │
 │  outliers_streak_all_time_records (Caché)                   │
 │    └──> player (record holder)                              │
+│                                                              │
+│  outliers_player_season_state (Estado acumulado)             │
+│    └──> player                                              │
 │                                                              │
 ├──────────────────────────────────────────────────────────────┤
 │                   SISTEMA Y AUDITORÍA                        │
@@ -837,4 +862,4 @@ Con overtimes:
 
 ---
 
-*Última actualización: Enero 2025*
+*Última actualización: Febrero 2026*
