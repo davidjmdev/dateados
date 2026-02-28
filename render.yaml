@@ -17,3 +17,6 @@ services:
         value: INFO
       - key: SECURE_TOKEN
         sync: false
+      - key: CLOUD_MODE
+        value: "true"
+      # Nota: RENDER_EXTERNAL_URL se inyecta automáticamente en Render

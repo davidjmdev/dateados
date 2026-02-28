@@ -1002,6 +1002,9 @@ El archivo `render.yaml` define únicamente la **Aplicación web FastAPI** corri
 | Variable | Descripción | Ejemplo |
 |----------|-------------|---------|
 | `DATABASE_URL` | URL completa de conexión PostgreSQL | `postgresql+psycopg://nba:nba@localhost:5432/nba_stats` |
+| `SECURE_TOKEN` | Token para asegurar endpoints cron | `tu_secreto_super_seguro` |
+| `CLOUD_MODE` | Activa comportamientos de nube (anti-spin-down) | `true` |
+| `RENDER_EXTERNAL_URL` | **(Inyectado por Render)** URL de la app | `https://nba-stats-app.onrender.com` |
 
 **Formato:**
 ```

@@ -32,7 +32,7 @@ def get_db():
         db.close()
 
 async def keep_alive_during_task(task_name: str, max_hours: int = 0):
-    """Evita el spin-down de Render haciendo ping local cada 5 min mientras la tarea corre.
+    """Evita el spin-down de Render haciendo ping externo cada 45 seg mientras la tarea corre.
     
     Args:
         task_name: Nombre de la tarea en la tabla system_status
@@ -45,13 +45,25 @@ async def keep_alive_during_task(task_name: str, max_hours: int = 0):
 
     logger = logging.getLogger("web.admin.keepalive")
     port = os.getenv("PORT", "8000")
+    
+    # Render inyecta RENDER_EXTERNAL_URL (ej: https://tu-app.onrender.com)
+    # Si existe, la usamos para generar tráfico entrante real y evitar que el router nos duerma.
+    # Si no, caemos de vuelta a localhost.
+    external_url = os.getenv("RENDER_EXTERNAL_URL")
+    if external_url:
+        ping_url = f"{external_url.rstrip('/')}/admin/ingest/status"
+        logger.info(f"🌐 Usando ping externo: {ping_url}")
+    else:
+        ping_url = f"http://localhost:{port}/admin/ingest/status"
+        logger.info(f"🏠 Usando ping local: {ping_url}")
+        
     start_time = time.time()
     
     logger.info(f"🔄 Anti-spin-down ACTIVO para: {task_name}")
     
     while True:
-        # Esperar 5 minutos entre pings
-        await asyncio.sleep(300)
+        # Esperar 45 segundos entre pings (Render pide actividad cada 50s aprox en capas gratuitas)
+        await asyncio.sleep(45)
         
         # Timeout de seguridad (opcional, solo si max_hours > 0)
         if max_hours > 0 and (time.time() - start_time) > (max_hours * 3600):
@@ -72,10 +84,11 @@ async def keep_alive_during_task(task_name: str, max_hours: int = 0):
                 logger.info(f"✅ No se detectan tareas activas en system_status. Deteniendo keep-alive.")
                 break
                 
-            # Ping local al endpoint de status para mantener despierto el servicio
+            # Ping al endpoint de status para mantener despierto el servicio
             try:
-                async with httpx.AsyncClient(timeout=10.0) as client:
-                    await client.get(f"http://localhost:{port}/admin/ingest/status")
+                # Usar follow_redirects=True en caso de que Render redirija HTTP a HTTPS
+                async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+                    await client.get(ping_url)
                 logger.debug(f"💓 Keep-alive ping enviado ({len(active_tasks)} tareas activas)")
             except Exception as e:
                 logger.debug(f"⚠️ Fallo en ping keep-alive: {e}")
