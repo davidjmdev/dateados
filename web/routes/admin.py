@@ -31,13 +31,18 @@ def get_db():
     finally:
         db.close()
 
+@router.get("/health")
+async def health_check():
+    """Endpoint super ligero sin acceso a BD para evitar deadlocks durante el ping."""
+    return {"status": "ok", "timestamp": datetime.now().isoformat()}
+
 async def keep_alive_during_task(task_name: str, max_hours: int = 0):
     """Evita el spin-down de Render haciendo ping externo cada 45 seg mientras la tarea corre.
     
     Args:
-        task_name: Nombre de la tarea en la tabla system_status
+        task_name: Nombre de la tarea (solo para logs)
         max_hours: Si > 0, tiempo máximo de ejecución. Si es 0 (default), corre indefinidamente
-                  mientras la tarea esté activa en la base de datos.
+                  mientras la lista active_processes tenga elementos.
     """
     # Solo actuar si estamos en la nube (Render o similar)
     if os.getenv("RENDER") != "true" and os.getenv("CLOUD_MODE") != "true":
@@ -51,11 +56,12 @@ async def keep_alive_during_task(task_name: str, max_hours: int = 0):
     # Si no, caemos de vuelta a localhost.
     external_url = os.getenv("RENDER_EXTERNAL_URL")
     if external_url:
-        ping_url = f"{external_url.rstrip('/')}/admin/ingest/status"
-        logger.info(f"🌐 Usando ping externo: {ping_url}")
+        # Apuntamos a /admin/health para no tocar la BD en absoluto
+        ping_url = f"{external_url.rstrip('/')}/admin/health"
+        logger.info(f"🌐 Usando ping externo ligero: {ping_url}")
     else:
-        ping_url = f"http://localhost:{port}/admin/ingest/status"
-        logger.info(f"🏠 Usando ping local: {ping_url}")
+        ping_url = f"http://localhost:{port}/admin/health"
+        logger.info(f"🏠 Usando ping local ligero: {ping_url}")
         
     start_time = time.time()
     
@@ -70,33 +76,27 @@ async def keep_alive_during_task(task_name: str, max_hours: int = 0):
             logger.warning(f"⏱️ Keep-alive timeout tras {max_hours}h. Deteniendo.")
             break
             
-        # Verificar estado en BD
-        session = get_session()
-        try:
-            # Monitorizar si hay CUALQUIER tarea activa en el sistema
-            # Esto previene que el keep-alive se detenga si una subtarea (como awards) sigue viva
-            active_tasks = session.query(SystemStatus).filter(
-                SystemStatus.status.in_(["running", "pending"])
-            ).all()
+        # Verificar estado en MEMORIA RAM (no base de datos para evitar deadlocks)
+        global active_processes
+        
+        # Primero limpiamos procesos que ya hayan terminado por si acaso
+        for p in list(active_processes):
+            if p.poll() is not None:
+                active_processes.remove(p)
+                
+        # Si no hay NINGÚN proceso vivo en memoria RAM, terminamos el keep-alive
+        if not active_processes:
+            logger.info(f"✅ No se detectan procesos en RAM. Deteniendo keep-alive para {task_name}.")
+            break
             
-            # Si no hay NINGUNA tarea activa, terminamos el keep-alive
-            if not active_tasks:
-                logger.info(f"✅ No se detectan tareas activas en system_status. Deteniendo keep-alive.")
-                break
-                
-            # Ping al endpoint de status para mantener despierto el servicio
-            try:
-                # Usar follow_redirects=True en caso de que Render redirija HTTP a HTTPS
-                async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
-                    await client.get(ping_url)
-                logger.debug(f"💓 Keep-alive ping enviado ({len(active_tasks)} tareas activas)")
-            except Exception as e:
-                logger.debug(f"⚠️ Fallo en ping keep-alive: {e}")
-                
+        # Ping al endpoint de status para mantener despierto el servicio
+        try:
+            # Usar follow_redirects=True en caso de que Render redirija HTTP a HTTPS
+            async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+                await client.get(ping_url)
+            logger.debug(f"💓 Keep-alive ping enviado ({len(active_processes)} procesos activos en RAM)")
         except Exception as e:
-            logger.error(f"❌ Error en bucle keep-alive: {e}")
-        finally:
-            session.close()
+            logger.debug(f"⚠️ Fallo en ping keep-alive: {e}")
 
     logger.info(f"🛑 Anti-spin-down FINALIZADO para: {task_name}")
 
