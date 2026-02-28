@@ -44,11 +44,20 @@ async def keep_alive_during_task(task_name: str, max_hours: int = 0):
         max_hours: Si > 0, tiempo máximo de ejecución. Si es 0 (default), corre indefinidamente
                   mientras la lista active_processes tenga elementos.
     """
-    # Solo actuar si estamos en la nube (Render o similar)
-    if os.getenv("RENDER") != "true" and os.getenv("CLOUD_MODE") != "true":
-        return
-
     logger = logging.getLogger("web.admin.keepalive")
+
+    # Determinar si estamos en la nube (Render o similar) de forma robusta
+    is_cloud = (
+        bool(os.getenv("RENDER_EXTERNAL_URL")) or
+        os.getenv("RENDER") in ("true", "1", "True") or
+        os.getenv("CLOUD_MODE") in ("true", "1", "True", '"true"')
+    )
+
+    if not is_cloud:
+        logger.info(f"🚫 Anti-spin-down omitido (No estamos en entorno Cloud para '{task_name}').")
+        return
+        
+    logger.info(f"🚀 Iniciando Keep-Alive para '{task_name}'...")
     port = os.getenv("PORT", "8000")
     
     # Render inyecta RENDER_EXTERNAL_URL (ej: https://tu-app.onrender.com)
