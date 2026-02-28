@@ -58,7 +58,7 @@ class SQLAlchemyHandler(logging.Handler):
         return self._session_factory
 
     def emit(self, record):
-        if record.name.startswith('sqlalchemy') or record.name.startswith('psycopg2'):
+        if record.name.startswith('sqlalchemy') or record.name.startswith('psycopg'):
             return
 
         session = self.session_factory()

@@ -123,7 +123,7 @@ docker-compose up -d
 
 Crear archivo `.env` en la raíz:
 ```env
-DATABASE_URL=postgresql://nba:nba@localhost:5432/nba_stats
+DATABASE_URL=postgresql+psycopg://nba:nba@localhost:5432/nba_stats
 ```
 
 **5. Inicializar esquema**
@@ -1001,11 +1001,11 @@ El archivo `render.yaml` define únicamente la **Aplicación web FastAPI** corri
 
 | Variable | Descripción | Ejemplo |
 |----------|-------------|---------|
-| `DATABASE_URL` | URL completa de conexión PostgreSQL | `postgresql://nba:nba@localhost:5432/nba_stats` |
+| `DATABASE_URL` | URL completa de conexión PostgreSQL | `postgresql+psycopg://nba:nba@localhost:5432/nba_stats` |
 
 **Formato:**
 ```
-postgresql://[usuario]:[password]@[host]:[puerto]/[database]
+postgresql+psycopg://[usuario]:[password]@[host]:[puerto]/[database]
 ```
 
 **Configuración en Render:**

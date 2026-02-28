@@ -16,7 +16,7 @@ load_dotenv()
 # URL de conexión a PostgreSQL
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://nba:nba@localhost:5432/nba_stats"
+    "postgresql+psycopg://nba:nba@localhost:5432/nba_stats"
 )
 
 
