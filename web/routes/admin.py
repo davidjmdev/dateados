@@ -76,6 +76,14 @@ async def keep_alive_during_task(task_name: str, max_hours: int = 0):
     
     logger.info(f"🔄 Anti-spin-down ACTIVO para: {task_name}")
     
+    # Ping inicial inmediato para ganar tiempo frente al router de Render
+    try:
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+            await client.get(ping_url)
+        logger.info(f"💓 Keep-alive inicial enviado con éxito")
+    except Exception as e:
+        logger.warning(f"⚠️ Fallo en ping inicial: {e}")
+
     while True:
         # Esperar 45 segundos entre pings (Render pide actividad cada 50s aprox en capas gratuitas)
         await asyncio.sleep(45)
@@ -317,9 +325,10 @@ async def start_ingestion(background_tasks: BackgroundTasks, clean: bool = False
     status.last_run = datetime.now()
     db.commit()
     
+    # Activar keep-alive condicional (AHORA EN PARALELO INMEDIATO)
+    asyncio.create_task(keep_alive_during_task("smart_ingestion"))
+    
     background_tasks.add_task(run_ingestion_task)
-    # Activar keep-alive condicional
-    background_tasks.add_task(keep_alive_during_task, "smart_ingestion")
     
     return {"status": "success", "message": "Ingesta inteligente iniciada en segundo plano con protección anti-spin-down."}
 
@@ -360,10 +369,11 @@ async def cron_ingestion(
     status.last_run = datetime.now()
     db.commit()
     
+    # Activar keep-alive condicional (AHORA EN PARALELO INMEDIATO)
+    asyncio.create_task(keep_alive_during_task("smart_ingestion"))
+    
     # Lanzamos la ingesta inteligente normal
     background_tasks.add_task(run_ingestion_task)
-    # Activar keep-alive condicional
-    background_tasks.add_task(keep_alive_during_task, "smart_ingestion")
     
     return {"status": "success", "message": "Ingesta automática iniciada con protección anti-spin-down."}
 
@@ -385,9 +395,11 @@ async def update_awards(
         raise HTTPException(status_code=403, detail="Token de seguridad inválido")
 
     task_name = "awards_sync"
+    
+    # Activar keep-alive condicional (AHORA EN PARALELO INMEDIATO)
+    asyncio.create_task(keep_alive_during_task(task_name))
+    
     background_tasks.add_task(run_awards_update_task)
-    # Activar keep-alive condicional
-    background_tasks.add_task(keep_alive_during_task, task_name)
     
     return {
         "status": "success", 
@@ -412,9 +424,11 @@ async def update_outliers(
         raise HTTPException(status_code=403, detail="Token de seguridad inválido")
 
     task_name = "outliers_backfill"
+    
+    # Activar keep-alive condicional (AHORA EN PARALELO INMEDIATO)
+    asyncio.create_task(keep_alive_during_task(task_name))
+    
     background_tasks.add_task(run_outliers_update_task)
-    # Activar keep-alive condicional
-    background_tasks.add_task(keep_alive_during_task, task_name)
     
     return {
         "status": "success", 
