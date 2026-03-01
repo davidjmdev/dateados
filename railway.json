@@ -1,33 +1,19 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
-  "build": {
-    "builder": "NIXPACKS",
-    "buildCommand": "pip install -r requirements.txt"
-  },
   "deploy": {
     "numReplicas": 1,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10,
     "startCommand": "uvicorn web.app:app --host 0.0.0.0 --port $PORT",
+    "healthcheckPath": "/",
+    "healthcheckTimeout": 100,
     "env": {
-      "CLOUD_MODE": {
-        "value": "true"
-      },
-      "INGEST_API_DELAY": {
-        "value": "2"
-      },
-      "INGEST_API_TIMEOUT": {
-        "value": "30"
-      },
-      "INGEST_MAX_WORKERS_CLOUD": {
-        "value": "1"
-      },
-      "LOG_LEVEL": {
-        "value": "INFO"
-      },
-      "PYTHON_VERSION": {
-        "value": "3.10.12"
-      }
+      "PYTHON_VERSION": "3.14.3",
+      "CLOUD_MODE": "true",
+      "INGEST_API_DELAY": "2",
+      "INGEST_API_TIMEOUT": "30",
+      "INGEST_MAX_WORKERS_CLOUD": "1",
+      "LOG_LEVEL": "INFO"
     }
   }
 }
