@@ -46,9 +46,10 @@ async def keep_alive_during_task(task_name: str, max_hours: int = 0):
     """
     logger = logging.getLogger("web.admin.keepalive")
 
-    # Determinar si estamos en la nube (Render o similar) de forma robusta
+    # Determinar si estamos en la nube (Render, Railway o similar) de forma robusta
     is_cloud = (
         bool(os.getenv("RENDER_EXTERNAL_URL")) or
+        bool(os.getenv("RAILWAY_STATIC_URL")) or
         os.getenv("RENDER") in ("true", "1", "True") or
         os.getenv("CLOUD_MODE") in ("true", "1", "True", '"true"')
     )
@@ -60,10 +61,10 @@ async def keep_alive_during_task(task_name: str, max_hours: int = 0):
     logger.info(f"🚀 Iniciando Keep-Alive para '{task_name}'...")
     port = os.getenv("PORT", "8000")
     
-    # Render inyecta RENDER_EXTERNAL_URL (ej: https://tu-app.onrender.com)
+    # Render/Railway injectan URLs externas (ej: https://tu-app.onrender.com o tu-app.railway.app)
     # Si existe, la usamos para generar tráfico entrante real y evitar que el router nos duerma.
     # Si no, caemos de vuelta a localhost.
-    external_url = os.getenv("RENDER_EXTERNAL_URL")
+    external_url = os.getenv("RENDER_EXTERNAL_URL") or os.getenv("RAILWAY_STATIC_URL")
     if external_url:
         # Apuntamos a /admin/health para no tocar la BD en absoluto
         ping_url = f"{external_url.rstrip('/')}/admin/health"
