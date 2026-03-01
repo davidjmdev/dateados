@@ -46,11 +46,9 @@ async def keep_alive_during_task(task_name: str, max_hours: int = 0):
     """
     logger = logging.getLogger("web.admin.keepalive")
 
-    # Determinar si estamos en la nube (Render, Railway o similar) de forma robusta
+    # Determinar si estamos en la nube (Railway) de forma robusta
     is_cloud = (
-        bool(os.getenv("RENDER_EXTERNAL_URL")) or
-        bool(os.getenv("RAILWAY_STATIC_URL")) or
-        os.getenv("RENDER") in ("true", "1", "True") or
+        bool(os.getenv("RAILWAY_PUBLIC_DOMAIN")) or
         os.getenv("CLOUD_MODE") in ("true", "1", "True", '"true"')
     )
 
@@ -61,13 +59,13 @@ async def keep_alive_during_task(task_name: str, max_hours: int = 0):
     logger.info(f"🚀 Iniciando Keep-Alive para '{task_name}'...")
     port = os.getenv("PORT", "8000")
     
-    # Render/Railway injectan URLs externas (ej: https://tu-app.onrender.com o tu-app.railway.app)
+    # Railway inyecta RAILWAY_PUBLIC_DOMAIN (ej: tu-app.railway.app)
     # Si existe, la usamos para generar tráfico entrante real y evitar que el router nos duerma.
     # Si no, caemos de vuelta a localhost.
-    external_url = os.getenv("RENDER_EXTERNAL_URL") or os.getenv("RAILWAY_STATIC_URL")
+    external_url = os.getenv("RAILWAY_PUBLIC_DOMAIN")
     if external_url:
-        # Apuntamos a /admin/health para no tocar la BD en absoluto
-        ping_url = f"{external_url.rstrip('/')}/admin/health"
+        # Añadir https:// ya que RAILWAY_PUBLIC_DOMAIN no lo incluye
+        ping_url = f"https://{external_url.rstrip('/')}/admin/health"
         logger.info(f"🌐 Usando ping externo ligero: {ping_url}")
     else:
         ping_url = f"http://localhost:{port}/admin/health"
@@ -77,7 +75,7 @@ async def keep_alive_during_task(task_name: str, max_hours: int = 0):
     
     logger.info(f"🔄 Anti-spin-down ACTIVO para: {task_name}")
     
-    # Ping inicial inmediato para ganar tiempo frente al router de Render
+    # Ping inicial inmediato para ganar tiempo frente al router de Railway
     try:
         async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
             await client.get(ping_url)
@@ -86,7 +84,7 @@ async def keep_alive_during_task(task_name: str, max_hours: int = 0):
         logger.warning(f"⚠️ Fallo en ping inicial: {e}")
 
     while True:
-        # Esperar 45 segundos entre pings (Render pide actividad cada 50s aprox en capas gratuitas)
+        # Esperar 45 segundos entre pings
         await asyncio.sleep(45)
         
         # Timeout de seguridad (opcional, solo si max_hours > 0)
@@ -109,7 +107,7 @@ async def keep_alive_during_task(task_name: str, max_hours: int = 0):
             
         # Ping al endpoint de status para mantener despierto el servicio
         try:
-            # Usar follow_redirects=True en caso de que Render redirija HTTP a HTTPS
+            # Usar follow_redirects=True por si hay redirección HTTP a HTTPS
             async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
                 await client.get(ping_url)
             logger.debug(f"💓 Keep-alive ping enviado ({len(active_processes)} procesos activos en RAM)")

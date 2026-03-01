@@ -76,7 +76,7 @@ Sistema de outliers con **tres detectores complementarios**:
 ### 🤖 Automatización y CI/CD
 - **GitHub Actions**: Ingesta diaria automática a las 07:00 UTC
 - **Actualización sin intervención**: Captura partidos de la noche anterior
-- **Compatible con Render Free Tier**: Mantiene la BD actualizada incluso con servicio en reposo
+- **Compatible con Railway**: El servicio siempre está activo (no se duerme)
 
 ---
 
@@ -257,7 +257,7 @@ graph TD
     D -->|results| B
     E -->|results| B
     B -->|web.query| F[FastAPI]
-    F -->|render| G[Web Dashboard]
+    F -->|railway| G[Web Dashboard]
     H[GitHub Actions] -->|daily| A
 ```
 
@@ -974,28 +974,29 @@ docker-compose down -v
 - **Persistencia:** Volumen `./postgres_data`
 - **Health checks:** `pg_isready` cada 10s
 
-### Render.com (Producción)
+### Railway (Producción)
 
-**Servicios definidos en `render.yaml`:**
+**Configuración definida en `railway.json`:**
 
-El archivo `render.yaml` define únicamente la **Aplicación web FastAPI** corriendo bajo Python 3.10.12. (La base de datos PostgreSQL debe provisionarse de forma separada o utilizando una conexión externa inyectada vía entorno).
+El archivo `railway.json` define la **Aplicación web FastAPI** corriendo bajo Python. La base de datos PostgreSQL es externa (Aiven) y se conecta vía entorno.
 
-- **Nombre:** `dateados-web`
-- **Runtime:** Python 3.10.12
+- **Runtime:** Python 3.10+
+- **Builder:** Nixpacks
 - **Build:** `pip install -r requirements.txt`
-- **Pre-deploy:** `python -m ingestion.cli --init-db`
 - **Start:** `uvicorn web.app:app --host 0.0.0.0 --port $PORT`
-- **Health check:** `/`
+- **Health check:** `/admin/health`
 
 **Variables de entorno automáticas:**
-- `DATABASE_URL`: URL de conexión PostgreSQL (inyectada por Render)
-- `PORT`: Puerto asignado (inyectado por Render)
+- `DATABASE_URL`: URL de conexión PostgreSQL (inyectada por Railway)
+- `PORT`: Puerto asignado (inyectado por Railway)
+- `RAILWAY_PUBLIC_DOMAIN`: Dominio público del servicio (inyectado por Railway)
 
 **Notas importantes:**
 - ❌ **No incluye PyTorch** en producción (solo `requirements.txt`)
 - ✅ **Autoencoder pre-entrenado**: Subir modelos `.pt` y `.pkl` al repo
 - ✅ **Detección de outliers**: Funciona con modelo pre-entrenado (solo inferencia)
-- ⚠️ **No se puede entrenar** en Render Free (requiere GPU/mucha CPU)
+- ⚠️ **No se puede entrenar** en Railway (requiere GPU/mucha CPU)
+- 💰 **Coste**: $5/mes de crédito gratuito (probablemente $0 si el uso es bajo)
 
 ### Variables de Entorno Requeridas
 
@@ -1003,18 +1004,19 @@ El archivo `render.yaml` define únicamente la **Aplicación web FastAPI** corri
 |----------|-------------|---------|
 | `DATABASE_URL` | URL completa de conexión PostgreSQL | `postgresql+psycopg://nba:nba@localhost:5432/nba_stats` |
 | `SECURE_TOKEN` | Token para asegurar endpoints cron | `tu_secreto_super_seguro` |
-| `CLOUD_MODE` | Activa comportamientos de nube (anti-spin-down) | `true` |
-| `RENDER_EXTERNAL_URL` | **(Inyectado por Render)** URL de la app | `https://nba-stats-app.onrender.com` |
+| `CLOUD_MODE` | Activa comportamientos de nube | `true` |
+| `RAILWAY_PUBLIC_DOMAIN` | **(Inyectado por Railway)** Dominio de la app | `tu-app.railway.app` |
 
 **Formato:**
 ```
-postgresql+psycopg://[usuario]:[password]@[host]:[puerto]/[database]
+postgresql+psycopg://[usuario]:[password]@[host]:[puerto]/[database]?sslmode=require
 ```
 
-**Configuración en Render:**
-1. Ir a **Database** > Connections
-2. Copiar **External Connection String**
-3. Configurar en **Settings** > **Secrets** de GitHub Actions
+**Configuración en Railway:**
+1. Conectar tu repositorio GitHub
+2. Railway detectará automáticamente `railway.json`
+3. Configurar las variables en la pestaña "Variables"
+4. Desplegar
 
 ---
 
@@ -1027,10 +1029,9 @@ postgresql+psycopg://[usuario]:[password]@[host]:[puerto]/[database]
 **Horario:** Todos los días a las **07:00 UTC** (automático).
 
 **¿Cómo funciona?**
-1. GitHub Actions realiza una petición `POST` segura al servidor de Render.
-2. La petición "despierta" el servicio si está en reposo (Render Free Tier).
-3. El servidor ejecuta la **ingesta inteligente** en segundo plano.
-4. Los datos se actualizan directamente desde el entorno de Render, evitando bloqueos de IP de la NBA API.
+1. GitHub Actions realiza una petición `POST` segura al servidor de Railway.
+2. El servicio (siempre activo) ejecuta la **ingesta inteligente** en segundo plano.
+3. Los datos se actualizan directamente desde el entorno de Railway, evitando bloqueos de IP de la NBA API.
 
 ### GitHub Actions - Actualización de Premios
 
@@ -1069,10 +1070,10 @@ Para que la automatización funcione, debes configurar los siguientes secretos e
 
 | Secreto | Descripción | Valor Ejemplo |
 |---------|-------------|---------------|
-| `API_BASE_URL` | URL base de tu aplicación en Render (NO RENDER_URL) | `https://dateados-web.onrender.com` |
+| `API_BASE_URL` | URL base de tu aplicación en Railway | `https://tu-app.railway.app` |
 | `SECURE_TOKEN` | Token de seguridad para la API (Header: `X-Secure-Token`) | `tu_clave_secreta_aqui` |
 
-*Nota: Asegúrate de añadir también `SECURE_TOKEN` en las **Environment Variables** de tu servicio en el Dashboard de Render. El secreto de URL debe llamarse `API_BASE_URL` (NO RENDER_URL).*
+*Nota: Asegúrate de añadir también `SECURE_TOKEN` en las **Environment Variables** de tu proyecto en Railway.*
 
 ---
 
