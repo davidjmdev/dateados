@@ -1,9 +1,9 @@
 name: NBA Daily Ingestion
 
 on:
-  schedule:
+  # schedule:
     # 07:00 UTC (8:00 AM en España invierno, 9:00 AM verano)
-    - cron: '0 7 * * *'
+    # - cron: '0 7 * * *'
   workflow_dispatch:
     # Permite ejecución manual desde la pestaña Actions de GitHub
 
